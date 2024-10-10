@@ -12,7 +12,7 @@ def run_benchmark(search_method, vectors, queries, k):
     return end_time - start_time
 
 def main():
-    np.random.seed(42)  # 固定随机种子
+    np.random.seed(2486)  # 固定随机种子
     dimensions = 128
     num_queries = 100
     k = 10
