@@ -91,7 +91,7 @@ def main():
 
     # Benchmark large datasets
     for dataset_name, params in large_datasets.items():
-        print(f"\nRunning benchmark for {dataset_name} dataset...")
+        print(f"\nRunning benchmark for {dataset_name} dataset with {params['num_queries']} queries and k={params['k']}...")
         vectors = generate_random_vectors(params["num_vectors"], dimensions)
         queries = generate_random_vectors(params["num_queries"], dimensions)
 
