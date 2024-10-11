@@ -9,7 +9,7 @@ import os
 # 将项目根目录添加到 Python 路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.search import LinearSearch, AdvancedSearch
+from src.search import LinearSearch, AdvancedSearch, FaissSearch
 from src.data_generator import generate_random_vectors
 
 def run_benchmark(search_method, vectors, queries, k):
@@ -21,7 +21,7 @@ def run_benchmark(search_method, vectors, queries, k):
 
 def main():
     np.random.seed(42)  # 固定随机种子
-    dimensions = 128
+    dimensions = 1024
     num_queries = 100
     k = 10
 
@@ -39,10 +39,12 @@ def main():
 
         linear_search = LinearSearch(vectors)
         advanced_search = AdvancedSearch(vectors)
+        faiss_search = FaissSearch(vectors)
 
         results[dataset_name] = {
             "linear_search": run_benchmark(linear_search, vectors, queries, k),
-            "advanced_search": run_benchmark(advanced_search, vectors, queries, k)
+            "advanced_search": run_benchmark(advanced_search, vectors, queries, k),
+            "faiss_search": run_benchmark(faiss_search, vectors, queries, k)
         }
 
     with open('benchmarks/results.json', 'w') as f:
