@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <cmath>
 
-AdvancedSearch::AdvancedSearch(py::array_t<double> vectors) {
+AdvancedSearch::AdvancedSearch(py::array_t<float> vectors) {
     py::buffer_info buf = vectors.request();
     if (buf.ndim != 2) {
         throw std::runtime_error("Number of dimensions must be 2");
@@ -10,7 +10,7 @@ AdvancedSearch::AdvancedSearch(py::array_t<double> vectors) {
     
     size_t num_vectors = buf.shape[0];
     size_t vector_size = buf.shape[1];
-    double *ptr = static_cast<double *>(buf.ptr);
+    float *ptr = static_cast<float *>(buf.ptr);
 
     m_vectors.reserve(num_vectors);
     for (size_t i = 0; i < num_vectors; ++i) {
@@ -18,23 +18,24 @@ AdvancedSearch::AdvancedSearch(py::array_t<double> vectors) {
     }
 }
 
-py::array_t<int> AdvancedSearch::search(py::array_t<double> query, int k) {
+py::array_t<int> AdvancedSearch::search(py::array_t<float> query, int k) {
     py::buffer_info buf = query.request();
     if (buf.ndim != 1) {
         throw std::runtime_error("Number of dimensions must be 1");
     }
     
-    std::vector<double> query_vec(buf.shape[0]);
-    std::memcpy(query_vec.data(), buf.ptr, sizeof(double) * buf.shape[0]);
+    std::vector<float> query_vec(buf.shape[0]);
+    std::memcpy(query_vec.data(), buf.ptr, sizeof(float) * buf.shape[0]);
 
-    std::vector<std::pair<double, size_t>> distances;
+    std::vector<std::pair<float, size_t>> distances;
     distances.reserve(m_vectors.size());
 
     for (size_t i = 0; i < m_vectors.size(); ++i) {
-        double dist = cosine_distance(query_vec, m_vectors[i]);
+        float dist = cosine_distance(query_vec, m_vectors[i]);
         distances.emplace_back(dist, i);
     }
 
+    // God bless C++
     std::partial_sort(distances.begin(), distances.begin() + k, distances.end());
 
     py::array_t<int> result(k);
@@ -46,8 +47,8 @@ py::array_t<int> AdvancedSearch::search(py::array_t<double> query, int k) {
     return result;
 }
 
-double AdvancedSearch::cosine_distance(const std::vector<double>& a, const std::vector<double>& b) {
-    double dot = 0.0, denom_a = 0.0, denom_b = 0.0;
+float AdvancedSearch::cosine_distance(const std::vector<float>& a, const std::vector<float>& b) {
+    float dot = 0.0, denom_a = 0.0, denom_b = 0.0;
     for (size_t i = 0; i < a.size(); ++i) {
         dot += a[i] * b[i];
         denom_a += a[i] * a[i];

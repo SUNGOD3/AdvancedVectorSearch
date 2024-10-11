@@ -7,10 +7,10 @@ namespace py = pybind11;
 
 class AdvancedSearch {
 public:
-    AdvancedSearch(py::array_t<double> vectors);
-    py::array_t<int> search(py::array_t<double> query, int k);
+    AdvancedSearch(py::array_t<float> vectors);
+    py::array_t<int> search(py::array_t<float> query, int k);
 
 private:
-    std::vector<std::vector<double>> m_vectors;
-    static double cosine_distance(const std::vector<double>& a, const std::vector<double>& b);
+    std::vector<std::vector<float>> m_vectors;
+    static float cosine_distance(const std::vector<float>& a, const std::vector<float>& b);
 };
