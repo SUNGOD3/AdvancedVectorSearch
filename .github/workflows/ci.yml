@@ -31,7 +31,7 @@ jobs:
 
     - name: Compile C++ extension
       run: |
-        python setup.py build_ext --inplace
+        python src/setup.py build_ext --inplace
 
     - name: Run tests
       run: python -m unittest discover tests
