@@ -1,4 +1,5 @@
 *.json
+*.so
 
 src/__pycache__/
-src/build
+build/
