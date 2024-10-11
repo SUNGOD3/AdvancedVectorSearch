@@ -22,6 +22,16 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install pybind11 numpy
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake
+
+    - name: Compile C++ extension
+      run: |
+        python setup.py build_ext --inplace
 
     - name: Run tests
       run: python -m unittest discover tests
