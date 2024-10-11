@@ -2,24 +2,35 @@
 
 import numpy as np
 from scipy.spatial.distance import cosine
+from src.advanced_search_cpp import AdvancedSearch as CppAdvancedSearch
 import faiss
-
 
 class AdvancedSearch:
     def __init__(self, vectors):
-        self.vectors = vectors
+        """
+        Initialize the AdvancedSearch instance.
+        
+        :param vectors: A 2D numpy array of vectors to search through
+        """
+        self.cpp_search = CppAdvancedSearch(vectors)
 
     def search(self, query, k):
         """
-        Perform an "advanced" search (actually just a wrapper for linear search).
-        In a real implementation, this should contain a more advanced search algorithm.
+        Perform an "advanced" search using the C++ extension.
         
         :param query: Query vector
         :param k: Number of nearest neighbors to return
         :return: List of indices of the most similar vectors
         """
-        linear_search = LinearSearch(self.vectors)
-        return linear_search.search(query, k)
+        # Ensure query is a numpy array
+        query = np.asarray(query, dtype=np.float64)
+        
+        # Perform the search using the C++ extension
+        result = self.cpp_search.search(query, k)
+        
+        # Convert the result to a Python list and return
+        return result.tolist()
+
 
 class LinearSearch:
     def __init__(self, vectors):

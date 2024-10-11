@@ -40,10 +40,17 @@ def main():
     datasets = {
         "small": {"num_vectors": 100, "num_queries": 10, "k": 10},
         "medium": {"num_vectors": 1000, "num_queries": 100, "k": 20},
-        "large": {"num_vectors": 10000, "num_queries": 100, "k": 30}
+        "large": {"num_vectors": 10000, "num_queries": 100, "k": 30},
+    }
+
+    large_datasets = {
+        "extra_large": {"num_vectors": 50000, "num_queries": 200, "k": 50},
+        "huge": {"num_vectors": 100000, "num_queries": 200, "k": 50},
     }
 
     results = {}
+
+    # Benchmark small datasets
     for dataset_name, params in datasets.items():
         num_vectors = params["num_vectors"]
         num_queries = params["num_queries"]
@@ -77,6 +84,30 @@ def main():
                 "accuracy": faiss_accuracy
             }
         }
+
+        print(f"Linear search time: {linear_time:.4f} s")
+        print(f"Advanced search time: {advanced_time:.4f} s, accuracy: {advanced_accuracy:.4f}")
+        print(f"Faiss search time: {faiss_time:.4f} s, accuracy: {faiss_accuracy:.4f}")
+
+    # Benchmark large datasets
+    for dataset_name, params in large_datasets.items():
+        print(f"\nRunning benchmark for {dataset_name} dataset...")
+        vectors = generate_random_vectors(params["num_vectors"], dimensions)
+        queries = generate_random_vectors(params["num_queries"], dimensions)
+
+        advanced_search = AdvancedSearch(vectors)
+        faiss_search = FaissSearch(vectors)
+
+        advanced_results, advanced_time = run_benchmark(advanced_search, vectors, queries, params["k"])
+        faiss_results, faiss_time = run_benchmark(faiss_search, vectors, queries, params["k"])
+
+        results[dataset_name] = {
+            "advanced_search": {"time": advanced_time},
+            "faiss_search": {"time": faiss_time}
+        }
+
+        print(f"Advanced search time: {advanced_time:.4f} s")
+        print(f"Faiss search time: {faiss_time:.4f} s")
 
     os.makedirs('benchmarks', exist_ok=True)
     with open('benchmarks/results.json', 'w') as f:
