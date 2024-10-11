@@ -4,23 +4,6 @@ import numpy as np
 from scipy.spatial.distance import cosine
 import faiss
 
-def calculate_similarity(vector1, vector2):
-    return 1 - cosine(vector1, vector2)
-
-class LinearSearch:
-    def __init__(self, vectors):
-        self.vectors = vectors
-
-    def search(self, query, k):
-        """
-        执行线性搜索来找到最近的 k 个向量。
-        
-        :param query: 查询向量
-        :param k: 要返回的最近邻数量
-        :return: 最相似向量的索引列表
-        """
-        distances = [calculate_similarity(query, vector) for vector in self.vectors]
-        return np.argsort(distances)[::-1][:k]
 
 class AdvancedSearch:
     def __init__(self, vectors):
@@ -28,26 +11,57 @@ class AdvancedSearch:
 
     def search(self, query, k):
         """
-        执行"高级"搜索（实际上只是线性搜索的一个包装器）。
-        在实际实现中，这里应该包含更高级的搜索算法。
+        Perform an "advanced" search (actually just a wrapper for linear search).
+        In a real implementation, this should contain a more advanced search algorithm.
         
-        :param query: 查询向量
-        :param k: 要返回的最近邻数量
-        :return: 最相似向量的索引列表
+        :param query: Query vector
+        :param k: Number of nearest neighbors to return
+        :return: List of indices of the most similar vectors
         """
-        # 这里我们只是调用 LinearSearch 来模拟一个"高级"搜索
         linear_search = LinearSearch(self.vectors)
         return linear_search.search(query, k)
 
+class LinearSearch:
+    def __init__(self, vectors):
+        self.vectors = np.array(vectors)
+
+    def search(self, query, k):
+        query = np.array(query)
+        distances = np.array([cosine(query, v) for v in self.vectors])
+        top_k_indices = np.argsort(distances)[:k]
+        similarities = 1 - distances[top_k_indices]  # Convert distance to similarity
+        return top_k_indices.tolist()#, similarities.tolist()
+
+    def add(self, vector):
+        vector = np.array(vector).reshape(1, -1)
+        self.vectors = np.vstack((self.vectors, vector))
+
+
 class FaissSearch:
     def __init__(self, vectors):
-        self.vectors = np.array(vectors).astype('float32')
-        self.index = faiss.IndexFlatIP(self.vectors.shape[1])  # 使用內積（cosine similarity）
-        faiss.normalize_L2(self.vectors)  # 正規化向量以使用 cosine similarity
+        self.dimension = vectors.shape[1]
+        self.vectors = vectors
+
+        # Normalize vectors
+        faiss.normalize_L2(self.vectors)
+
+        # Use IndexFlatIP to compute inner product (for normalized vectors, this is equivalent to cosine similarity)
+        self.index = faiss.IndexFlatIP(self.dimension)
         self.index.add(self.vectors)
 
     def search(self, query, k):
-        query = np.array(query).astype('float32').reshape(1, -1)
-        faiss.normalize_L2(query)  # 正規化查詢向量
-        distances, indices = self.index.search(query, k)
-        return indices[0]
+        query = np.array(query).reshape(1, -1).astype('float32')
+        faiss.normalize_L2(query)
+
+        similarities, indices = self.index.search(query, k)
+        
+        # Faiss returns similarities as cosine similarity, no conversion needed
+        return indices[0].tolist()#, similarities[0].tolist()
+
+    def add(self, vectors):
+        if not isinstance(vectors, np.ndarray):
+            vectors = np.array(vectors)
+        vectors = vectors.astype('float32')
+        faiss.normalize_L2(vectors)
+        self.index.add(vectors)
+

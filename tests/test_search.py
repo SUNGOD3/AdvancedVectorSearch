@@ -1,7 +1,7 @@
 
 import unittest
 import numpy as np
-from src.search import LinearSearch, AdvancedSearch
+from src.search import LinearSearch, AdvancedSearch, FaissSearch
 from src.data_generator import generate_random_vectors
 
 class TestSearch(unittest.TestCase):
@@ -18,9 +18,21 @@ class TestSearch(unittest.TestCase):
         results = linear_search.search(self.queries[0], self.k)
         self.assertEqual(len(results), self.k)
         # Add more assertions here
+        for result in results:
+            self.assertIn(result, range(self.num_vectors))
 
     def test_advanced_search(self):
         advanced_search = AdvancedSearch(self.vectors)
         results = advanced_search.search(self.queries[0], self.k)
         self.assertEqual(len(results), self.k)
         # Add more assertions here
+        for result in results:
+            self.assertIn(result, range(self.num_vectors))
+
+    def test_faiss_search(self):
+        faiss_search = FaissSearch(self.vectors)
+        results = faiss_search.search(self.queries[0], self.k)
+        self.assertEqual(len(results), self.k)
+        # Add more assertions here
+        for result in results:
+            self.assertIn(result, range(self.num_vectors))
