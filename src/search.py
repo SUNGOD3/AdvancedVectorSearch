@@ -2,7 +2,7 @@
 
 import numpy as np
 from scipy.spatial.distance import cosine
-from src.advanced_search_cpp import AdvancedSearch as CppAdvancedSearch
+from advanced_search_cpp import AdvancedSearch as CppAdvancedSearch
 import faiss
 
 class AdvancedSearch:
