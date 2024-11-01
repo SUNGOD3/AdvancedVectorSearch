@@ -1,6 +1,7 @@
 *.json
 *.so
-
-src/__pycache__/
-tests/__pycache__/
+**/__pycache__/
 build/
+data/
+*.fvecs
+*.ivecs
