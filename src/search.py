@@ -47,7 +47,7 @@ class LinearSearch:
         vector = np.array(vector).reshape(1, -1)
         self.vectors = np.vstack((self.vectors, vector))
 
-
+# faiss.normalize_L2 -> faiss/utils/distances.cpp
 class FaissSearch:
     def __init__(self, vectors):
         self.dimension = vectors.shape[1]

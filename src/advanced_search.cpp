@@ -1,6 +1,7 @@
 #include "advanced_search.h"
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 AdvancedSearch::AdvancedSearch(py::array_t<float> vectors) {
     py::buffer_info buf = vectors.request();
@@ -8,14 +9,17 @@ AdvancedSearch::AdvancedSearch(py::array_t<float> vectors) {
         throw std::runtime_error("Number of dimensions must be 2");
     }
     
-    size_t num_vectors = buf.shape[0];
-    size_t vector_size = buf.shape[1];
-    float *ptr = static_cast<float *>(buf.ptr);
+    m_num_vectors = buf.shape[0];
+    m_vector_size = buf.shape[1];
 
-    m_vectors.reserve(num_vectors);
-    for (size_t i = 0; i < num_vectors; ++i) {
-        m_vectors.emplace_back(ptr + i * vector_size, ptr + (i + 1) * vector_size);
-    }
+    size_t total_size = m_num_vectors * m_vector_size;
+    m_data = new float[total_size];
+    
+    std::memcpy(m_data, buf.ptr, sizeof(float) * total_size);
+}
+
+AdvancedSearch::~AdvancedSearch() {
+    delete[] m_data;
 }
 
 py::array_t<int> AdvancedSearch::search(py::array_t<float> query, int k) {
@@ -23,20 +27,25 @@ py::array_t<int> AdvancedSearch::search(py::array_t<float> query, int k) {
     if (buf.ndim != 1) {
         throw std::runtime_error("Number of dimensions must be 1");
     }
+    if (static_cast<size_t>(buf.shape[0]) != m_vector_size) {
+        throw std::runtime_error("Query vector dimension mismatch");
+    }
     
-    std::vector<float> query_vec(buf.shape[0]);
-    std::memcpy(query_vec.data(), buf.ptr, sizeof(float) * buf.shape[0]);
-
+    const float* query_ptr = static_cast<float*>(buf.ptr);
     std::vector<std::pair<float, size_t>> distances;
-    distances.reserve(m_vectors.size());
+    distances.reserve(m_num_vectors);
 
-    for (size_t i = 0; i < m_vectors.size(); ++i) {
-        float dist = cosine_distance(query_vec, m_vectors[i]);
+    for (size_t i = 0; i < m_num_vectors; ++i) {
+        float dist = cosine_distance(query_ptr, 
+                                   m_data + i * m_vector_size, 
+                                   m_vector_size);
         distances.emplace_back(dist, i);
     }
 
-    // God bless C++
-    std::partial_sort(distances.begin(), distances.begin() + k, distances.end());
+    k = std::min(k, static_cast<int>(m_num_vectors));
+    std::partial_sort(distances.begin(), 
+                     distances.begin() + k, 
+                     distances.end());
 
     py::array_t<int> result(k);
     auto result_buf = result.mutable_unchecked<1>();
@@ -47,12 +56,24 @@ py::array_t<int> AdvancedSearch::search(py::array_t<float> query, int k) {
     return result;
 }
 
-float AdvancedSearch::cosine_distance(const std::vector<float>& a, const std::vector<float>& b) {
+float AdvancedSearch::cosine_distance(const float* a, const float* b, size_t size) {
     float dot = 0.0, denom_a = 0.0, denom_b = 0.0;
-    for (size_t i = 0; i < a.size(); ++i) {
+    
+    size_t i;
+    for (i = 0; i + 4 <= size; i += 4) {
+        dot += a[i] * b[i] + a[i+1] * b[i+1] + 
+               a[i+2] * b[i+2] + a[i+3] * b[i+3];
+        denom_a += a[i] * a[i] + a[i+1] * a[i+1] + 
+                   a[i+2] * a[i+2] + a[i+3] * a[i+3];
+        denom_b += b[i] * b[i] + b[i+1] * b[i+1] + 
+                   b[i+2] * b[i+2] + b[i+3] * b[i+3];
+    }
+    
+    for (; i < size; ++i) {
         dot += a[i] * b[i];
         denom_a += a[i] * a[i];
         denom_b += b[i] * b[i];
     }
+    
     return 1.0 - (dot / (std::sqrt(denom_a) * std::sqrt(denom_b)));
 }
