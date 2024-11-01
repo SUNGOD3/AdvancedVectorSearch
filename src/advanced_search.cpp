@@ -32,25 +32,45 @@ py::array_t<int> AdvancedSearch::search(py::array_t<float> query, int k) {
     }
     
     const float* query_ptr = static_cast<float*>(buf.ptr);
-    std::vector<std::pair<float, size_t>> distances;
-    distances.reserve(m_num_vectors);
+    std::pair<float, size_t> distances[m_num_vectors];
 
+    #pragma omp parallel for
     for (size_t i = 0; i < m_num_vectors; ++i) {
-        float dist = cosine_distance(query_ptr, 
-                                   m_data + i * m_vector_size, 
-                                   m_vector_size);
-        distances.emplace_back(dist, i);
+        distances[i] = {cosine_distance(query_ptr, m_data + i * m_vector_size, m_vector_size), i};
     }
 
     k = std::min(k, static_cast<int>(m_num_vectors));
-    std::partial_sort(distances.begin(), 
-                     distances.begin() + k, 
-                     distances.end());
 
+    std::nth_element(distances, distances + k, distances + m_num_vectors);
+
+    //std::sort(distances, distances + k);
+
+    int num_threads = 4, size = k;
+    int block_size = (size + num_threads - 1) / num_threads;
+    
+    // Step 1: Sort blocks
+    #pragma omp parallel for 
+    for (int i = 0; i < size; i += block_size) {
+        int block_end = std::min(i + block_size, size);
+        std::sort(distances + i, distances + block_end);
+    }
+    
+    // Step 2: Merge blocks
+    for (int merge_size = block_size; merge_size < size; merge_size *= 2) {
+        #pragma omp parallel for schedule(dynamic)
+        for (int i = 0; i < size; i += 2 * merge_size) {
+            int mid = std::min(i + merge_size, size);
+            int end = std::min(i + 2 * merge_size, size);
+            if (end > mid) {
+                std::inplace_merge(distances + i, distances + mid, distances + end);
+            }
+        }
+    }
+    
     py::array_t<int> result(k);
-    auto result_buf = result.mutable_unchecked<1>();
+    #pragma omp parallel for
     for (int i = 0; i < k; ++i) {
-        result_buf(i) = static_cast<int>(distances[i].second);
+        result.mutable_at(i) = distances[i].second;
     }
 
     return result;
@@ -59,21 +79,12 @@ py::array_t<int> AdvancedSearch::search(py::array_t<float> query, int k) {
 float AdvancedSearch::cosine_distance(const float* a, const float* b, size_t size) {
     float dot = 0.0, denom_a = 0.0, denom_b = 0.0;
     
-    size_t i;
-    for (i = 0; i + 4 <= size; i += 4) {
-        dot += a[i] * b[i] + a[i+1] * b[i+1] + 
-               a[i+2] * b[i+2] + a[i+3] * b[i+3];
-        denom_a += a[i] * a[i] + a[i+1] * a[i+1] + 
-                   a[i+2] * a[i+2] + a[i+3] * a[i+3];
-        denom_b += b[i] * b[i] + b[i+1] * b[i+1] + 
-                   b[i+2] * b[i+2] + b[i+3] * b[i+3];
-    }
-    
-    for (; i < size; ++i) {
+    # pragma omp simd reduction(+:dot,denom_a,denom_b)
+    for (size_t i = 0; i < size; ++i) {
         dot += a[i] * b[i];
         denom_a += a[i] * a[i];
         denom_b += b[i] * b[i];
     }
-    
-    return 1.0 - (dot / (std::sqrt(denom_a) * std::sqrt(denom_b)));
+
+    return 1.0f - dot / std::sqrt(denom_a * denom_b);
 }

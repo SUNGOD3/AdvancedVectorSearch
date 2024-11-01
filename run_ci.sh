@@ -3,6 +3,13 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
+# Clean up
+echo "Cleaning up..."
+python src/setup.py clean --all
+rm -rf build/
+rm -f src/advanced_search_cpp*.so
+
+
 # 安裝 Python 依賴項
 # echo "Installing Python dependencies..."
 # python -m pip install --upgrade pip
