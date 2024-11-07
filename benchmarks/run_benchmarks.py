@@ -46,7 +46,7 @@ def main():
     large_datasets = {
         "extra_large": {"num_vectors": 50000, "num_queries": 200, "k": 50},
         "huge": {"num_vectors": 100000, "num_queries": 200, "k": 50},
-        "huge_query": {"num_vectors": 100000, "num_queries": 200, "k": 5000},
+        "huge_query": {"num_vectors": 100000, "num_queries": 200, "k": 100000},
     }
 
     results = {}
