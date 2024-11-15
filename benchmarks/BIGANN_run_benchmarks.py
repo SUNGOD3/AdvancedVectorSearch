@@ -9,7 +9,7 @@ import os
 # Add the project root directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.search import LinearSearch, FaissSearch, AdvancedSearch
+from src.search import LinearSearch, FaissSearch, AdvancedLinearSearch
 from src.data_generator import generate_random_vectors
 
 def read_fvecs(filename: str) -> np.ndarray:
@@ -193,7 +193,7 @@ def main():
     # Define search methods to benchmark
     search_methods = {
         'Linear': LinearSearch,
-        'Advanced': AdvancedSearch,
+        'Advanced': AdvancedLinearSearch,
         'Faiss': FaissSearch
     }
     

@@ -3,3 +3,4 @@ faiss-cpu==1.8.0
 scipy==1.10.1
 packaging==24.1
 pybind11==2.13.6
+tqdm==4.67.0
