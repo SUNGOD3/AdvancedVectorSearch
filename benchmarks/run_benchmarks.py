@@ -120,21 +120,29 @@ def main():
         advanced_knn_results, advanced_knn_time = run_benchmark(advanced_knn, vectors, queries, params["k"])
         faiss_results, faiss_time = run_benchmark(faiss_search, vectors, queries, params["k"])
 
+        # accuracy = compare eachother
+        advanced_linear_accuracy = evaluate_accuracy(advanced_linear_results, advanced_knn_results)
+        advanced_knn_accuracy = evaluate_accuracy(advanced_knn_results, faiss_results)
+        faiss_accuracy = evaluate_accuracy(faiss_results, advanced_linear_results)
+
         results[dataset_name] = {
             "advanced_linear_search": {
-                "time": advanced_linear_time
+                "time": advanced_linear_time,
+                "accuracy": advanced_linear_accuracy
             },
             "advanced_knn_search": {
-                "time": advanced_knn_time
+                "time": advanced_knn_time,
+                "accuracy": advanced_knn_accuracy
             },
             "faiss_search": {
-                "time": faiss_time
+                "time": faiss_time,
+                "accuracy": faiss_accuracy
             }
         }
 
-        print(f"Advanced linear search time: {advanced_linear_time:.4f} s")
-        print(f"Advanced KNN search time: {advanced_knn_time:.4f} s")
-        print(f"Faiss search time: {faiss_time:.4f} s")
+        print(f"Advanced linear search time: {advanced_linear_time:.4f} s, similarity to Advanced KNN: {advanced_linear_accuracy:.4f}")
+        print(f"Advanced KNN search time: {advanced_knn_time:.4f} s, similarity to Faiss: {advanced_knn_accuracy:.4f}")
+        print(f"Faiss search time: {faiss_time:.4f} s, similarity to Advanced Linear: {faiss_accuracy:.4f}")
 
     # Save results
     os.makedirs('benchmarks', exist_ok=True)

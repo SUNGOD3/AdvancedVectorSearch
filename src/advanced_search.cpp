@@ -105,104 +105,164 @@ AdvancedKNNSearch::AdvancedKNNSearch(py::array_t<float> vectors) {
     m_data = new float[total_size];
     std::memcpy(m_data, buf.ptr, sizeof(float) * total_size);
 
-    // Build KD-tree
+    // Build ball tree
     std::vector<size_t> indices(m_num_vectors);
     for (size_t i = 0; i < m_num_vectors; ++i) {
         indices[i] = i;
     }
-    build_tree(root, indices, 0);
+    build_tree(root, indices);
 }
 
 AdvancedKNNSearch::~AdvancedKNNSearch() {
     delete[] m_data;
 }
 
-void AdvancedKNNSearch::build_tree(std::unique_ptr<Node>& node, std::vector<size_t>& indices, int depth) {
+float AdvancedKNNSearch::compute_radius(const std::vector<size_t>& indices, size_t center_idx) {
+    float max_dist = 0.0f;
+    const float* center = m_data + center_idx * m_vector_size;
+    
+    for (size_t idx : indices) {
+        if (idx == center_idx) continue;
+        const float* point = m_data + idx * m_vector_size;
+        float dist = cosine_distance(center, point, m_vector_size);
+        max_dist = std::max(max_dist, dist);
+    }
+    return max_dist;
+}
+
+size_t AdvancedKNNSearch::find_furthest_point(const std::vector<size_t>& indices, size_t center_idx) {
+    float max_dist = -1.0f;
+    size_t furthest_idx = center_idx;
+    const float* center = m_data + center_idx * m_vector_size;
+    
+    for (size_t idx : indices) {
+        if (idx == center_idx) continue;
+        const float* point = m_data + idx * m_vector_size;
+        float dist = cosine_distance(center, point, m_vector_size);
+        if (dist > max_dist) {
+            max_dist = dist;
+            furthest_idx = idx;
+        }
+    }
+    return furthest_idx;
+}
+
+void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, std::vector<size_t>& indices) {
     if (indices.empty()) {
         return;
     }
 
-    node.reset(new Node());
+    node = std::make_unique<BallNode>();
     
-    if (indices.size() == 1) {
-        node->idx = indices[0];
-        node->pivot = m_data + indices[0] * m_vector_size;
+    // For small number of points, store them directly
+    if (indices.size() <= 10) {
+        node->points = indices;
+        node->center_idx = indices[0];
+        node->radius = compute_radius(indices, node->center_idx);
         return;
     }
 
-    // Choose splitting dimension - use the dimension with highest variance
-    size_t best_dim = 0;
-    float max_variance = -1;
+    // Choose center point (use the first point as initial center)
+    node->center_idx = indices[0];
     
-    for (size_t d = 0; d < m_vector_size; d++) {
-        float mean = 0, variance = 0;
+    // Find the furthest point from center
+    size_t furthest_idx = find_furthest_point(indices, node->center_idx);
+    
+    // Create two groups based on distance to these two points
+    std::vector<size_t> left_indices, right_indices;
+    left_indices.push_back(node->center_idx);  // Include center point in left group
+    
+    const float* center = m_data + node->center_idx * m_vector_size;
+    const float* furthest = m_data + furthest_idx * m_vector_size;
+    
+    for (size_t idx : indices) {
+        if (idx == node->center_idx) continue;  // Skip center as it's already added
         
-        // Calculate mean
-        for (size_t i = 0; i < indices.size(); i++) {
-            mean += m_data[indices[i] * m_vector_size + d];
-        }
-        mean /= indices.size();
+        const float* point = m_data + idx * m_vector_size;
+        float dist_to_center = cosine_distance(center, point, m_vector_size);
+        float dist_to_furthest = cosine_distance(furthest, point, m_vector_size);
         
-        // Calculate variance
-        for (size_t i = 0; i < indices.size(); i++) {
-            float diff = m_data[indices[i] * m_vector_size + d] - mean;
-            variance += diff * diff;
-        }
-        
-        if (variance > max_variance) {
-            max_variance = variance;
-            best_dim = d;
+        if (dist_to_center <= dist_to_furthest) {
+            left_indices.push_back(idx);
+        } else {
+            right_indices.push_back(idx);
         }
     }
-
-    size_t mid = indices.size() / 2;
-    std::nth_element(indices.begin(), indices.begin() + mid, indices.end(),
-        [this, best_dim](size_t a, size_t b) {
-            return m_data[a * m_vector_size + best_dim] < m_data[b * m_vector_size + best_dim];
-        });
-
-    node->idx = indices[mid];
-    node->pivot = m_data + indices[mid] * m_vector_size;
-    node->split_dim = best_dim;
-
-    std::vector<size_t> left_indices(indices.begin(), indices.begin() + mid);
-    std::vector<size_t> right_indices(indices.begin() + mid + 1, indices.end());
-
-    build_tree(node->left, left_indices, depth + 1);
-    build_tree(node->right, right_indices, depth + 1);
+    
+    // Ensure the furthest point is included
+    if (std::find(left_indices.begin(), left_indices.end(), furthest_idx) == left_indices.end() &&
+        std::find(right_indices.begin(), right_indices.end(), furthest_idx) == right_indices.end()) {
+        right_indices.push_back(furthest_idx);
+    }
+    
+    // Store all points in the current node
+    node->points = indices;
+    
+    // Compute radius of current ball
+    node->radius = compute_radius(indices, node->center_idx);
+    
+    // Recursively build subtrees only if we have points to split
+    if (!left_indices.empty()) {
+        build_tree(node->left, left_indices);
+    }
+    if (!right_indices.empty()) {
+        build_tree(node->right, right_indices);
+    }
 }
 
-void AdvancedKNNSearch::search_tree(const Node* node, const float* query,
-                                  std::priority_queue<std::pair<float, size_t>>& results,
-                                  float& worst_dist, int k) const {
+void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
+                                        const float* query,
+                                        std::priority_queue<std::pair<float, size_t>>& results,
+                                        float& worst_dist,
+                                        int k) const {
     if (!node) return;
 
-    float dist = cosine_distance(query, node->pivot, m_vector_size);
+    // Compute distance to center
+    float dist_to_center = cosine_distance(query, m_data + node->center_idx * m_vector_size, m_vector_size);
     
-    if (results.size() < static_cast<size_t>(k)) {
-        results.push({-dist, node->idx});  // Negative dist for max-heap to work as min-heap
-        if (results.size() == static_cast<size_t>(k)) {
-            worst_dist = -results.top().first;
+    // If this is a leaf node, check all points
+    if (!node->left && !node->right) {
+        for (size_t idx : node->points) {
+            float dist = cosine_distance(query, m_data + idx * m_vector_size, m_vector_size);
+            
+            if (results.size() < static_cast<size_t>(k)) {
+                results.push({dist, idx});
+                if (results.size() == static_cast<size_t>(k)) {
+                    worst_dist = results.top().first;
+                }
+            } else if (dist < worst_dist) {
+                results.pop();
+                results.push({dist, idx});
+                worst_dist = results.top().first;
+            }
         }
-    } else if (dist < worst_dist) {
-        results.pop();
-        results.push({-dist, node->idx});
-        worst_dist = -results.top().first;
+        return;
     }
-
-    if (!node->left && !node->right) return;
-
-    float diff = query[node->split_dim] - node->pivot[node->split_dim];
-    const Node* first = diff <= 0 ? node->left.get() : node->right.get();
-    const Node* second = diff <= 0 ? node->right.get() : node->left.get();
-
-    // Always search the closer branch first
-    search_tree(first, query, results, worst_dist, k);
     
-    // Only search the other branch if it could contain better points
-    float split_dist = std::abs(diff);
-    if (results.size() < static_cast<size_t>(k) || split_dist < worst_dist) {
-        search_tree(second, query, results, worst_dist, k);
+    // Check if we can prune this subtree
+    if (results.size() == static_cast<size_t>(k) && 
+        dist_to_center - node->radius > worst_dist) {
+        return;
+    }
+    
+    // Recursively search both subtrees
+    // Search the closer subtree first
+    if (node->left && node->right) {
+        float dist_to_left = cosine_distance(query, 
+            m_data + node->left->center_idx * m_vector_size, m_vector_size);
+        float dist_to_right = cosine_distance(query, 
+            m_data + node->right->center_idx * m_vector_size, m_vector_size);
+        
+        if (dist_to_left < dist_to_right) {
+            search_ball_tree(node->left.get(), query, results, worst_dist, k);
+            search_ball_tree(node->right.get(), query, results, worst_dist, k);
+        } else {
+            search_ball_tree(node->right.get(), query, results, worst_dist, k);
+            search_ball_tree(node->left.get(), query, results, worst_dist, k);
+        }
+    } else {
+        if (node->left) search_ball_tree(node->left.get(), query, results, worst_dist, k);
+        if (node->right) search_ball_tree(node->right.get(), query, results, worst_dist, k);
     }
 }
 
@@ -217,20 +277,37 @@ py::array_t<int> AdvancedKNNSearch::search(py::array_t<float> query, int k) {
 
     const float* query_ptr = static_cast<float*>(buf.ptr);
     
-    // Use priority queue for maintaining top-k results
+    // If k equals total number of vectors, return all indices sorted by distance
+    if (k >= static_cast<int>(m_num_vectors)) {
+        std::vector<std::pair<float, size_t>> all_distances(m_num_vectors);
+        #pragma omp parallel for schedule(static)
+        for (size_t i = 0; i < m_num_vectors; ++i) {
+            float dist = cosine_distance(query_ptr, m_data + i * m_vector_size, m_vector_size);
+            all_distances[i] = {dist, i};
+        }
+        
+        std::sort(all_distances.begin(), all_distances.end());
+        
+        py::array_t<int> result(m_num_vectors);
+        for (size_t i = 0; i < m_num_vectors; i++) {
+            result.mutable_at(i) = all_distances[i].second;
+        }
+        return result;
+    }
+    
+    // Regular k-NN search for k < m_num_vectors
     std::priority_queue<std::pair<float, size_t>> results;
     float worst_dist = std::numeric_limits<float>::max();
     
-    search_tree(root.get(), query_ptr, results, worst_dist, k);
+    search_ball_tree(root.get(), query_ptr, results, worst_dist, k);
     
     // Convert results to sorted array
     std::vector<std::pair<float, size_t>> sorted_results;
     while (!results.empty()) {
-        auto result = results.top();
-        sorted_results.push_back({-result.first, result.second});  // Convert back to positive distances
+        sorted_results.push_back(results.top());
         results.pop();
     }
-    std::reverse(sorted_results.begin(), sorted_results.end());  // Reverse to get ascending order
+    std::reverse(sorted_results.begin(), sorted_results.end());
     
     // Create return array
     py::array_t<int> result(sorted_results.size());

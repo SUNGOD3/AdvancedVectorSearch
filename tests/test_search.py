@@ -51,7 +51,7 @@ class TestSearch(unittest.TestCase):
         # Get results from all methods
         linear_results = set(LinearSearch(self.vectors).search(query, self.k))
         advanced_linear_results = set(AdvancedLinearSearch(self.vectors).search(query, self.k))
-        #advanced_knn_results = set(AdvancedKNNSearch(self.vectors).search(query, self.k))
+        advanced_knn_results = set(AdvancedKNNSearch(self.vectors).search(query, self.k))
         faiss_results = set(FaissSearch(self.vectors).search(query, self.k))
         
         # Calculate Jaccard similarity between results
@@ -61,14 +61,14 @@ class TestSearch(unittest.TestCase):
             return intersection / union if union > 0 else 0
         
         # Compare results with a tolerance
-        tolerance = 0.01  # 0% tolerance
+        tolerance = 0.0 # no tolerance
         
         self.assertGreater(jaccard_similarity(linear_results, advanced_linear_results), tolerance)
-        #self.assertGreater(jaccard_similarity(linear_results, advanced_knn_results), tolerance)
+        self.assertGreater(jaccard_similarity(linear_results, advanced_knn_results), tolerance)
         self.assertGreater(jaccard_similarity(linear_results, faiss_results), tolerance)
-        #self.assertGreater(jaccard_similarity(advanced_linear_results, advanced_knn_results), tolerance)
+        self.assertGreater(jaccard_similarity(advanced_linear_results, advanced_knn_results), tolerance)
         self.assertGreater(jaccard_similarity(advanced_linear_results, faiss_results), tolerance)
-        #self.assertGreater(jaccard_similarity(advanced_knn_results, faiss_results), tolerance)
+        self.assertGreater(jaccard_similarity(advanced_knn_results, faiss_results), tolerance)
 
     def test_edge_cases(self):
         """Test edge cases for all search methods"""

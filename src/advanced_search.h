@@ -44,20 +44,26 @@ public:
     py::array_t<int> search(py::array_t<float> query, int k) override;
 
 protected:
-    struct Node {
-        size_t idx;
-        const float* pivot;
-        size_t split_dim;
-        std::unique_ptr<Node> left;
-        std::unique_ptr<Node> right;
+    struct BallNode {
+        size_t center_idx;       // Index of the center vector
+        float radius;           // Radius of the ball
+        std::vector<size_t> points;  // Points contained in this ball
+        std::unique_ptr<BallNode> left;
+        std::unique_ptr<BallNode> right;
         
-        Node() : idx(0), pivot(nullptr), split_dim(0) {}
+        BallNode() : center_idx(0), radius(0.0f) {}
     };
 
 private:    
-    std::unique_ptr<Node> root;
-    void build_tree(std::unique_ptr<Node>& node, std::vector<size_t>& indices, int depth);
-    void search_tree(const Node* node, const float* query,
-                    std::priority_queue<std::pair<float, size_t>>& results,
-                    float& worst_dist, int k) const;
+    std::unique_ptr<BallNode> root;
+    
+    // Helper functions for ball tree construction and search
+    void build_tree(std::unique_ptr<BallNode>& node, std::vector<size_t>& indices);
+    float compute_radius(const std::vector<size_t>& indices, size_t center_idx);
+    size_t find_furthest_point(const std::vector<size_t>& indices, size_t center_idx);
+    void search_ball_tree(const BallNode* node, 
+                         const float* query,
+                         std::priority_queue<std::pair<float, size_t>>& results,
+                         float& worst_dist,
+                         int k) const;
 };
