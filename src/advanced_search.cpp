@@ -121,7 +121,7 @@ float AdvancedKNNSearch::compute_radius(const std::vector<size_t>& indices, size
     float max_dist = 0.0f;
     const float* center = m_data + center_idx * m_vector_size;
     
-    // Optimization: Use vectorized block processing
+    // Optimization: Use vectorized block processing with explicit SIMD optimization
     const size_t block_size = 256;
     const size_t num_blocks = (indices.size() + block_size - 1) / block_size;
     
@@ -140,7 +140,17 @@ float AdvancedKNNSearch::compute_radius(const std::vector<size_t>& indices, size
                 if (indices[i] == center_idx) continue;
                 
                 const float* point = m_data + indices[i] * m_vector_size;
-                float dist = cosine_distance(center, point, m_vector_size);
+                float dot = 0.0f, denom_a = 0.0f, denom_b = 0.0f;
+                
+                // Explicit SIMD optimization for distance calculation
+                #pragma omp simd reduction(+:dot,denom_a,denom_b) aligned(center,point:32)
+                for (size_t j = 0; j < m_vector_size; ++j) {
+                    dot += center[j] * point[j];
+                    denom_a += center[j] * center[j];
+                    denom_b += point[j] * point[j];
+                }
+                
+                float dist = 1.0f - dot / std::sqrt(denom_a * denom_b);
                 block_max_dist = std::max(block_max_dist, dist);
             }
             
@@ -300,42 +310,84 @@ void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
                                         int k) const {
     if (!node) return;
 
-    // Compute distance to center
-    float dist_to_center = cosine_distance(query, m_data + node->center_idx * m_vector_size, m_vector_size);
+    // Calculate distance to center with SIMD optimization
+    const float* center = m_data + node->center_idx * m_vector_size;
+    float dot = 0.0f, denom_a = 0.0f, denom_b = 0.0f;
     
-    // If this is a leaf node, check all points
-    if (!node->left && !node->right) {
-        for (size_t idx : node->points) {
-            float dist = cosine_distance(query, m_data + idx * m_vector_size, m_vector_size);
-            
-            if (results.size() < static_cast<size_t>(k)) {
-                results.push({dist, idx});
-                if (results.size() == static_cast<size_t>(k)) {
-                    worst_dist = results.top().first;
-                }
-            } else if (dist < worst_dist) {
-                results.pop();
-                results.push({dist, idx});
-                worst_dist = results.top().first;
-            }
-        }
-        return;
+    #pragma omp simd reduction(+:dot,denom_a,denom_b)
+    for (size_t i = 0; i < m_vector_size; ++i) {
+        dot += center[i] * query[i];
+        denom_a += center[i] * center[i];
+        denom_b += query[i] * query[i];
     }
+    float dist_to_center = 1.0f - dot / std::sqrt(denom_a * denom_b);
     
-    // Check if we can prune this subtree
+    // Early pruning check
     if (results.size() == static_cast<size_t>(k) && 
         dist_to_center - node->radius > worst_dist) {
         return;
     }
     
-    // Recursively search both subtrees
-    // Search the closer subtree first
-    if (node->left && node->right) {
-        float dist_to_left = cosine_distance(query, 
-            m_data + node->left->center_idx * m_vector_size, m_vector_size);
-        float dist_to_right = cosine_distance(query, 
-            m_data + node->right->center_idx * m_vector_size, m_vector_size);
+    // Leaf node processing
+    if (!node->left && !node->right) {
+        // Process points in small batches to maintain cache efficiency
+        const size_t batch_size = 16;
+        const size_t num_points = node->points.size();
         
+        for (size_t batch_start = 0; batch_start < num_points; batch_start += batch_size) {
+            const size_t batch_end = std::min(batch_start + batch_size, num_points);
+            
+            // Process each point in the batch
+            for (size_t i = batch_start; i < batch_end; ++i) {
+                size_t idx = node->points[i];
+                const float* point = m_data + idx * m_vector_size;
+                
+                float dot = 0.0f, denom_a = 0.0f;
+                
+                #pragma omp simd reduction(+:dot,denom_a)
+                for (size_t j = 0; j < m_vector_size; ++j) {
+                    dot += point[j] * query[j];
+                    denom_a += point[j] * point[j];
+                }
+                
+                float dist = 1.0f - dot / std::sqrt(denom_a * denom_b);
+                
+                if (results.size() < static_cast<size_t>(k)) {
+                    results.push({dist, idx});
+                    if (results.size() == static_cast<size_t>(k)) {
+                        worst_dist = results.top().first;
+                    }
+                } else if (dist < worst_dist) {
+                    results.pop();
+                    results.push({dist, idx});
+                    worst_dist = results.top().first;
+                }
+            }
+        }
+        return;
+    }
+    
+    // Recursively search both subtrees
+    if (node->left && node->right) {
+        // Calculate distances to both child centers
+        const float* left_center = m_data + node->left->center_idx * m_vector_size;
+        const float* right_center = m_data + node->right->center_idx * m_vector_size;
+        
+        float left_dot = 0.0f, left_norm = 0.0f;
+        float right_dot = 0.0f, right_norm = 0.0f;
+        
+        #pragma omp simd reduction(+:left_dot,left_norm,right_dot,right_norm)
+        for (size_t i = 0; i < m_vector_size; ++i) {
+            left_dot += left_center[i] * query[i];
+            left_norm += left_center[i] * left_center[i];
+            right_dot += right_center[i] * query[i];
+            right_norm += right_center[i] * right_center[i];
+        }
+        
+        float dist_to_left = 1.0f - left_dot / std::sqrt(left_norm * denom_b);
+        float dist_to_right = 1.0f - right_dot / std::sqrt(right_norm * denom_b);
+        
+        // Visit closer node first
         if (dist_to_left < dist_to_right) {
             search_ball_tree(node->left.get(), query, results, worst_dist, k);
             search_ball_tree(node->right.get(), query, results, worst_dist, k);
