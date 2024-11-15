@@ -160,7 +160,10 @@ void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, std::vector<
 
     const size_t sample_size = std::min(size_t(512), indices.size());
     
-    // 計算取樣點的平均值
+    // Select center point & compute mean
+    size_t center_idx = indices[0];
+    float min_distance_sum = std::numeric_limits<float>::max();
+    
     std::vector<float> mean(m_vector_size, 0.0f);
 
     for (size_t i = 0; i < sample_size; ++i) {
@@ -168,7 +171,19 @@ void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, std::vector<
         for (size_t j = 0; j < m_vector_size; ++j) {
             mean[j] += point[j];
         }
+        float distance_sum = 0.0f;
+
+        for (size_t j = 0; j < sample_size; ++j) {
+            const float* point_b = m_data + indices[j] * m_vector_size;
+            distance_sum += cosine_distance(point, point_b, m_vector_size);
+        }
+
+        if (distance_sum < min_distance_sum) {
+            min_distance_sum = distance_sum;
+            center_idx = indices[i];
+        }
     }
+    node->center_idx = center_idx;
 
     for (size_t j = 0; j < m_vector_size; ++j) {
         mean[j] /= sample_size;
@@ -176,7 +191,7 @@ void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, std::vector<
 
     // Find principal direction using power iteration
     std::vector<float> principal_direction(m_vector_size, 1.0f); 
-    for (int iter = 0; iter < 3; ++iter) {
+    for (int iter = 0; iter < 4; ++iter) {
         std::vector<float> new_direction(m_vector_size, 0.0f);
 
         for (size_t i = 0; i < sample_size; ++i) {
@@ -203,33 +218,12 @@ void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, std::vector<
         }
         norm = std::sqrt(norm);
 
-        if (norm > 1e-10) {
+        if (norm > 1e-7) {
             for (size_t j = 0; j < m_vector_size; ++j) {
                 principal_direction[j] = new_direction[j] / norm;
             }
         }
     }
-
-    // Select center point
-    size_t center_idx = indices[0];
-    float min_distance_sum = std::numeric_limits<float>::max();
-
-    for (size_t i = 0; i < sample_size; ++i) {
-        const float* point_a = m_data + indices[i] * m_vector_size;
-        float distance_sum = 0.0f;
-
-        for (size_t j = 0; j < sample_size; ++j) {
-            const float* point_b = m_data + indices[j] * m_vector_size;
-            distance_sum += cosine_distance(point_a, point_b, m_vector_size);
-        }
-
-        if (distance_sum < min_distance_sum) {
-            min_distance_sum = distance_sum;
-            center_idx = indices[i];
-        }
-    }
-
-    node->center_idx = center_idx;
 
     // Partition points based on projection
     std::vector<std::pair<float, size_t>> projections;
