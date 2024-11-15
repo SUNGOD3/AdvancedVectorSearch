@@ -121,12 +121,38 @@ float AdvancedKNNSearch::compute_radius(const std::vector<size_t>& indices, size
     float max_dist = 0.0f;
     const float* center = m_data + center_idx * m_vector_size;
     
-    for (size_t idx : indices) {
-        if (idx == center_idx) continue;
-        const float* point = m_data + idx * m_vector_size;
-        float dist = cosine_distance(center, point, m_vector_size);
-        max_dist = std::max(max_dist, dist);
+    // Optimization: Use vectorized block processing
+    const size_t block_size = 256;
+    const size_t num_blocks = (indices.size() + block_size - 1) / block_size;
+    
+    #pragma omp parallel
+    {
+        float thread_max_dist = 0.0f;
+        
+        #pragma omp for nowait schedule(static)
+        for (size_t block = 0; block < num_blocks; ++block) {
+            const size_t start_idx = block * block_size;
+            const size_t end_idx = std::min(start_idx + block_size, indices.size());
+            
+            float block_max_dist = 0.0f;
+            
+            for (size_t i = start_idx; i < end_idx; ++i) {
+                if (indices[i] == center_idx) continue;
+                
+                const float* point = m_data + indices[i] * m_vector_size;
+                float dist = cosine_distance(center, point, m_vector_size);
+                block_max_dist = std::max(block_max_dist, dist);
+            }
+            
+            thread_max_dist = std::max(thread_max_dist, block_max_dist);
+        }
+        
+        #pragma omp critical
+        {
+            max_dist = std::max(max_dist, thread_max_dist);
+        }
     }
+    
     return max_dist;
 }
 
@@ -229,7 +255,6 @@ void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, std::vector<
         }
     }
 
-    // Rest of the function remains the same...
     size_t furthest_idx = find_furthest_point(indices, node->center_idx);
     
     std::vector<size_t> left_indices, right_indices;
