@@ -1,3 +1,4 @@
+// src/advanced_search_module.cpp
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include "advanced_search.h"
@@ -5,7 +6,13 @@
 namespace py = pybind11;
 
 PYBIND11_MODULE(advanced_search_cpp, m) {
-    py::class_<AdvancedSearch>(m, "AdvancedSearch")
+    py::class_<BaseAdvancedSearch>(m, "BaseAdvancedSearch");
+    
+    py::class_<AdvancedLinearSearch, BaseAdvancedSearch>(m, "AdvancedLinearSearch")
         .def(py::init<py::array_t<float>>())
-        .def("search", &AdvancedSearch::search);
+        .def("search", &AdvancedLinearSearch::search);
+        
+    py::class_<AdvancedKNNSearch, BaseAdvancedSearch>(m, "AdvancedKNNSearch")
+        .def(py::init<py::array_t<float>>())
+        .def("search", &AdvancedKNNSearch::search);
 }

@@ -1,35 +1,56 @@
 # src/search.py
-
 import numpy as np
 from scipy.spatial.distance import cosine
-from advanced_search_cpp import AdvancedSearch as CppAdvancedSearch
+from advanced_search_cpp import AdvancedLinearSearch as CppAdvancedLinearSearch
+from advanced_search_cpp import AdvancedKNNSearch as CppAdvancedKNNSearch
 import faiss
 
-class AdvancedSearch:
+class AdvancedSearchBase:
+    def search(self, query, k):
+        """
+        Base search method to be implemented by subclasses
+        """
+        raise NotImplementedError
+
+class AdvancedLinearSearch(AdvancedSearchBase):
     def __init__(self, vectors):
         """
-        Initialize the AdvancedSearch instance.
+        Initialize the AdvancedLinearSearch instance.
         
         :param vectors: A 2D numpy array of vectors to search through
         """
-        self.cpp_search = CppAdvancedSearch(vectors)
+        self.cpp_search = CppAdvancedLinearSearch(vectors)
 
     def search(self, query, k):
         """
-        Perform an "advanced" search using the C++ extension.
+        Perform a linear search using the C++ extension.
         
         :param query: Query vector
         :param k: Number of nearest neighbors to return
         :return: List of indices of the most similar vectors
         """
-        # Ensure query is a numpy array
-        query = np.asarray(query, dtype=np.float64)
+        query = np.asarray(query, dtype=np.float32)
+        return self.cpp_search.search(query, k).tolist()
+
+class AdvancedKNNSearch(AdvancedSearchBase):
+    def __init__(self, vectors):
+        """
+        Initialize the AdvancedKNNSearch instance.
         
-        # Perform the search using the C++ extension
-        result = self.cpp_search.search(query, k)
+        :param vectors: A 2D numpy array of vectors to search through
+        """
+        self.cpp_search = CppAdvancedKNNSearch(vectors)
+
+    def search(self, query, k):
+        """
+        Perform KNN search using the C++ extension.
         
-        # Convert the result to a Python list and return
-        return result.tolist()
+        :param query: Query vector
+        :param k: Number of nearest neighbors to return
+        :return: List of indices of the most similar vectors
+        """
+        query = np.asarray(query, dtype=np.float32)
+        return self.cpp_search.search(query, k).tolist()
 
 
 class LinearSearch:
@@ -40,7 +61,7 @@ class LinearSearch:
         query = np.array(query)
         distances = np.array([cosine(query, v) for v in self.vectors])
         top_k_indices = np.argsort(distances)[:k]
-        similarities = 1 - distances[top_k_indices]  # Convert distance to similarity
+        #similarities = 1 - distances[top_k_indices]  # Convert distance to similarity
         return top_k_indices.tolist()#, similarities.tolist()
 
     def add(self, vector):
