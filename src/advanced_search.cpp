@@ -121,48 +121,12 @@ float AdvancedKNNSearch::compute_radius(const std::vector<size_t>& indices, size
     float max_dist = 0.0f;
     const float* center = m_data + center_idx * m_vector_size;
     
-    // Optimization: Use vectorized block processing with explicit SIMD optimization
-    const size_t block_size = 256;
-    const size_t num_blocks = (indices.size() + block_size - 1) / block_size;
-    
-    #pragma omp parallel
-    {
-        float thread_max_dist = 0.0f;
-        
-        #pragma omp for nowait schedule(static)
-        for (size_t block = 0; block < num_blocks; ++block) {
-            const size_t start_idx = block * block_size;
-            const size_t end_idx = std::min(start_idx + block_size, indices.size());
-            
-            float block_max_dist = 0.0f;
-            
-            for (size_t i = start_idx; i < end_idx; ++i) {
-                if (indices[i] == center_idx) continue;
-                
-                const float* point = m_data + indices[i] * m_vector_size;
-                float dot = 0.0f, denom_a = 0.0f, denom_b = 0.0f;
-                
-                // Explicit SIMD optimization for distance calculation
-                #pragma omp simd reduction(+:dot,denom_a,denom_b) aligned(center,point:32)
-                for (size_t j = 0; j < m_vector_size; ++j) {
-                    dot += center[j] * point[j];
-                    denom_a += center[j] * center[j];
-                    denom_b += point[j] * point[j];
-                }
-                
-                float dist = 1.0f - dot / std::sqrt(denom_a * denom_b);
-                block_max_dist = std::max(block_max_dist, dist);
-            }
-            
-            thread_max_dist = std::max(thread_max_dist, block_max_dist);
-        }
-        
-        #pragma omp critical
-        {
-            max_dist = std::max(max_dist, thread_max_dist);
-        }
+    for (size_t idx : indices) {
+        if (idx == center_idx) continue;
+        const float* point = m_data + idx * m_vector_size;
+        float dist = cosine_distance(center, point, m_vector_size);
+        max_dist = std::max(max_dist, dist);
     }
-    
     return max_dist;
 }
 
@@ -184,190 +148,132 @@ size_t AdvancedKNNSearch::find_furthest_point(const std::vector<size_t>& indices
 }
 
 void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, std::vector<size_t>& indices) {
-    if (indices.empty()) {
-        return;
-    }
-
+    if (indices.empty()) return;
     node = std::make_unique<BallNode>();
-    
     // For small number of points, store them directly
-    if (indices.size() <= 10) {
+    if (indices.size() <= 128) {
         node->points = indices;
         node->center_idx = indices[0];
         node->radius = compute_radius(indices, node->center_idx);
         return;
     }
 
-    // Optimize center selection using Principal Direction strategy
-    const size_t sample_size = std::min(size_t(100), indices.size());
-    std::vector<float> mean(m_vector_size, 0.0f);
-    std::vector<float> principal_direction(m_vector_size, 0.0f);
+    const size_t sample_size = std::min(size_t(512), indices.size());
     
-    // Calculate mean of sampled points
-    #pragma omp parallel
-    {
-        std::vector<float> local_mean(m_vector_size, 0.0f);
-        
-        #pragma omp for nowait schedule(static)
+    // 計算取樣點的平均值
+    std::vector<float> mean(m_vector_size, 0.0f);
+
+    for (size_t i = 0; i < sample_size; ++i) {
+        const float* point = m_data + indices[i] * m_vector_size;
+        for (size_t j = 0; j < m_vector_size; ++j) {
+            mean[j] += point[j];
+        }
+    }
+
+    for (size_t j = 0; j < m_vector_size; ++j) {
+        mean[j] /= sample_size;
+    }
+
+    // Find principal direction using power iteration
+    std::vector<float> principal_direction(m_vector_size, 1.0f); 
+    for (int iter = 0; iter < 3; ++iter) {
+        std::vector<float> new_direction(m_vector_size, 0.0f);
+
         for (size_t i = 0; i < sample_size; ++i) {
             const float* point = m_data + indices[i] * m_vector_size;
-            #pragma omp simd
+            std::vector<float> centered_point(m_vector_size);
+
             for (size_t j = 0; j < m_vector_size; ++j) {
-                local_mean[j] += point[j];
+                centered_point[j] = point[j] - mean[j];
             }
-        }
-        
-        #pragma omp critical
-        {
-            #pragma omp simd
+
+            float proj = 0.0f;
             for (size_t j = 0; j < m_vector_size; ++j) {
-                mean[j] += local_mean[j];
+                proj += centered_point[j] * principal_direction[j];
+            }
+
+            for (size_t j = 0; j < m_vector_size; ++j) {
+                new_direction[j] += proj * centered_point[j];
             }
         }
-    }
-    
-    const float scale = 1.0f / sample_size;
-    #pragma omp simd
-    for (size_t j = 0; j < m_vector_size; ++j) {
-        mean[j] *= scale;
-    }
-    
-    // Find the principal direction using power iteration
-    std::vector<float> temp_vector(m_vector_size);
-    for (size_t iter = 0; iter < 3; ++iter) { // Usually 3 iterations is enough
-        std::fill(temp_vector.begin(), temp_vector.end(), 0.0f);
-        
-        #pragma omp parallel
-        {
-            std::vector<float> local_direction(m_vector_size, 0.0f);
-            
-            #pragma omp for schedule(static)
-            for (size_t i = 0; i < sample_size; ++i) {
-                const float* point = m_data + indices[i] * m_vector_size;
-                float proj = 0.0f;
-                
-                // Calculate projection
-                #pragma omp simd reduction(+:proj)
-                for (size_t j = 0; j < m_vector_size; ++j) {
-                    proj += (point[j] - mean[j]) * principal_direction[j];
-                }
-                
-                // Update direction
-                #pragma omp simd
-                for (size_t j = 0; j < m_vector_size; ++j) {
-                    local_direction[j] += proj * (point[j] - mean[j]);
-                }
-            }
-            
-            #pragma omp critical
-            {
-                #pragma omp simd
-                for (size_t j = 0; j < m_vector_size; ++j) {
-                    temp_vector[j] += local_direction[j];
-                }
-            }
-        }
-        
-        // Normalize
+
         float norm = 0.0f;
-        #pragma omp simd reduction(+:norm)
         for (size_t j = 0; j < m_vector_size; ++j) {
-            norm += temp_vector[j] * temp_vector[j];
+            norm += new_direction[j] * new_direction[j];
         }
         norm = std::sqrt(norm);
+
         if (norm > 1e-10) {
-            #pragma omp simd
             for (size_t j = 0; j < m_vector_size; ++j) {
-                principal_direction[j] = temp_vector[j] / norm;
+                principal_direction[j] = new_direction[j] / norm;
             }
         }
     }
-    
-    // Select center point based on projected values
-    float best_center_score = std::numeric_limits<float>::max();
-    node->center_idx = indices[0];
-    
-    #pragma omp parallel
-    {
-        float local_best_score = std::numeric_limits<float>::max();
-        size_t local_best_idx = indices[0];
-        
-        #pragma omp for schedule(static)
-        for (size_t i = 0; i < sample_size; ++i) {
-            const float* point = m_data + indices[i] * m_vector_size;
-            float score = 0.0f;
-            
-            for (size_t j = 0; j < sample_size; ++j) {
-                const float* other = m_data + indices[j] * m_vector_size;
-                float dist = cosine_distance(point, other, m_vector_size);
-                score += dist;
-            }
-            
-            if (score < local_best_score) {
-                local_best_score = score;
-                local_best_idx = indices[i];
-            }
+
+    // Select center point
+    size_t center_idx = indices[0];
+    float min_distance_sum = std::numeric_limits<float>::max();
+
+    for (size_t i = 0; i < sample_size; ++i) {
+        const float* point_a = m_data + indices[i] * m_vector_size;
+        float distance_sum = 0.0f;
+
+        for (size_t j = 0; j < sample_size; ++j) {
+            const float* point_b = m_data + indices[j] * m_vector_size;
+            distance_sum += cosine_distance(point_a, point_b, m_vector_size);
         }
-        
-        #pragma omp critical
-        {
-            if (local_best_score < best_center_score) {
-                best_center_score = local_best_score;
-                node->center_idx = local_best_idx;
-            }
+
+        if (distance_sum < min_distance_sum) {
+            min_distance_sum = distance_sum;
+            center_idx = indices[i];
         }
     }
+
+    node->center_idx = center_idx;
+
+    // Partition points based on projection
+    std::vector<std::pair<float, size_t>> projections;
+    projections.reserve(indices.size());
     
-    // Partition points based on distance to center
-    std::vector<size_t> left_indices, right_indices;
-    const float* center = m_data + node->center_idx * m_vector_size;
-    
-    // Reserve space to avoid reallocations
-    left_indices.reserve(indices.size() / 2);
-    right_indices.reserve(indices.size() / 2);
-    
-    // Compute projections and split based on median
-    std::vector<std::pair<float, size_t>> projections(indices.size());
-    
-    #pragma omp parallel for schedule(static)
-    for (size_t i = 0; i < indices.size(); ++i) {
-        float proj = 0.0f;
-        const float* point = m_data + indices[i] * m_vector_size;
-        
-        #pragma omp simd reduction(+:proj)
+    for (size_t idx : indices) {
+        const float* point = m_data + idx * m_vector_size;
+        std::vector<float> centered_point(m_vector_size);
+
         for (size_t j = 0; j < m_vector_size; ++j) {
-            proj += (point[j] - mean[j]) * principal_direction[j];
+            centered_point[j] = point[j] - mean[j];
         }
-        projections[i] = {proj, indices[i]};
+
+        float proj = 0.0f;
+        for (size_t j = 0; j < m_vector_size; ++j) {
+            proj += centered_point[j] * principal_direction[j];
+        }
+
+        projections.emplace_back(proj, idx);
     }
-    
-    // Find median
+
     size_t mid = projections.size() / 2;
     std::nth_element(projections.begin(), projections.begin() + mid, projections.end());
-    
-    // Split points
-    left_indices.push_back(node->center_idx);
-    for (size_t i = 0; i < projections.size(); ++i) {
-        if (projections[i].second == node->center_idx) continue;
-        
-        if (i < mid) {
-            left_indices.push_back(projections[i].second);
+
+    // Split points and recursively build subtrees
+    std::vector<size_t> left_indices{node->center_idx}, right_indices;
+    for (const auto& projection : projections) {
+        float proj = projection.first;
+        size_t idx = projection.second;
+
+        if (idx == node->center_idx) continue;
+
+        if (proj < projections[mid].first) {
+            left_indices.push_back(idx);
         } else {
-            right_indices.push_back(projections[i].second);
+            right_indices.push_back(idx);
         }
     }
-    
-    // Update node info
+
     node->radius = compute_radius(indices, node->center_idx);
-    node->points = indices;
-    
-    // Build subtrees
-    if (!left_indices.empty()) {
-        build_tree(node->left, left_indices);
-    }
-    if (!right_indices.empty()) {
-        build_tree(node->right, right_indices);
-    }
+    node->points = std::move(indices);
+
+    if (!left_indices.empty()) build_tree(node->left, left_indices);
+    if (!right_indices.empty()) build_tree(node->right, right_indices);
 }
 
 void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
