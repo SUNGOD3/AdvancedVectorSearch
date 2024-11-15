@@ -46,7 +46,8 @@ def main():
     large_datasets = {
         "extra_large": {"num_vectors": 50000, "num_queries": 200, "k": 50},
         "huge": {"num_vectors": 100000, "num_queries": 200, "k": 50},
-        "huge_query": {"num_vectors": 100000, "num_queries": 200, "k": 100000},
+        "huge_query": {"num_vectors": 100000, "num_queries": 200, "k": 10000},
+        "huge_full_query": {"num_vectors": 100000, "num_queries": 200, "k": 100000},
     }
 
     results = {}
@@ -120,7 +121,7 @@ def main():
         advanced_knn_results, advanced_knn_time = run_benchmark(advanced_knn, vectors, queries, params["k"])
         faiss_results, faiss_time = run_benchmark(faiss_search, vectors, queries, params["k"])
 
-        # accuracy = compare eachother
+        # accuracy = compare each other
         advanced_linear_accuracy = evaluate_accuracy(advanced_linear_results, advanced_knn_results)
         advanced_knn_accuracy = evaluate_accuracy(advanced_knn_results, faiss_results)
         faiss_accuracy = evaluate_accuracy(faiss_results, advanced_linear_results)
