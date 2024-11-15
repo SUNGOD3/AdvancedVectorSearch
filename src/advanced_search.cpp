@@ -162,21 +162,84 @@ void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, std::vector<
         return;
     }
 
-    // Choose center point (use the first point as initial center)
-    node->center_idx = indices[0];
+    // Fast center selection using sampling
+    const size_t max_samples = 100;
+    const size_t num_candidates = 5; 
     
-    // Find the furthest point from center
+    size_t stride = std::max(size_t(1), indices.size() / max_samples);
+    std::vector<size_t> samples;
+    samples.reserve(max_samples);
+    
+    // Systematic sampling
+    for (size_t i = 0; i < indices.size(); i += stride) {
+        samples.push_back(indices[i]);
+        if (samples.size() >= max_samples) break;
+    }
+    
+    std::vector<size_t> candidates;
+    candidates.reserve(num_candidates);
+    
+    size_t first_idx = samples[rand() % samples.size()];
+    candidates.push_back(first_idx);
+    
+    for (size_t c = 1; c < num_candidates; ++c) {
+        float max_min_dist = -1.0f;
+        size_t best_idx = first_idx;
+        
+        for (size_t sample_idx : samples) {
+            float min_dist = std::numeric_limits<float>::max();
+            const float* sample_ptr = m_data + sample_idx * m_vector_size;
+            
+            for (size_t cand_idx : candidates) {
+                const float* cand_ptr = m_data + cand_idx * m_vector_size;
+                float dist = cosine_distance(sample_ptr, cand_ptr, m_vector_size);
+                min_dist = std::min(min_dist, dist);
+            }
+            
+            if (min_dist > max_min_dist) {
+                max_min_dist = min_dist;
+                best_idx = sample_idx;
+            }
+        }
+        
+        candidates.push_back(best_idx);
+    }
+    
+    float min_total_dist = std::numeric_limits<float>::max();
+    node->center_idx = candidates[0];
+    
+    #pragma omp parallel for reduction(min:min_total_dist)
+    for (size_t i = 0; i < candidates.size(); ++i) {
+        const float* cand_ptr = m_data + candidates[i] * m_vector_size;
+        float total_dist = 0.0f;
+        
+        for (size_t sample_idx : samples) {
+            const float* sample_ptr = m_data + sample_idx * m_vector_size;
+            total_dist += cosine_distance(cand_ptr, sample_ptr, m_vector_size);
+        }
+        
+        if (total_dist < min_total_dist) {
+            #pragma omp critical
+            {
+                if (total_dist < min_total_dist) {
+                    min_total_dist = total_dist;
+                    node->center_idx = candidates[i];
+                }
+            }
+        }
+    }
+
+    // Rest of the function remains the same...
     size_t furthest_idx = find_furthest_point(indices, node->center_idx);
     
-    // Create two groups based on distance to these two points
     std::vector<size_t> left_indices, right_indices;
-    left_indices.push_back(node->center_idx);  // Include center point in left group
+    left_indices.push_back(node->center_idx);
     
     const float* center = m_data + node->center_idx * m_vector_size;
     const float* furthest = m_data + furthest_idx * m_vector_size;
     
     for (size_t idx : indices) {
-        if (idx == node->center_idx) continue;  // Skip center as it's already added
+        if (idx == node->center_idx) continue;
         
         const float* point = m_data + idx * m_vector_size;
         float dist_to_center = cosine_distance(center, point, m_vector_size);
@@ -189,19 +252,14 @@ void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, std::vector<
         }
     }
     
-    // Ensure the furthest point is included
     if (std::find(left_indices.begin(), left_indices.end(), furthest_idx) == left_indices.end() &&
         std::find(right_indices.begin(), right_indices.end(), furthest_idx) == right_indices.end()) {
         right_indices.push_back(furthest_idx);
     }
     
-    // Store all points in the current node
     node->points = indices;
-    
-    // Compute radius of current ball
     node->radius = compute_radius(indices, node->center_idx);
     
-    // Recursively build subtrees only if we have points to split
     if (!left_indices.empty()) {
         build_tree(node->left, left_indices);
     }
