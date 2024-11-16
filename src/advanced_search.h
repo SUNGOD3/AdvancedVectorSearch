@@ -15,6 +15,7 @@ public:
     virtual py::array_t<int> search(py::array_t<float> query, int k) = 0;
 protected:
     static float cosine_distance(const float* a, const float* b, size_t size);
+    static void parallel_sort(std::pair<float, size_t>* distances, int k);
     float* m_data;
     size_t m_num_vectors;
     size_t m_vector_size;
@@ -29,8 +30,6 @@ public:
     AdvancedLinearSearch& operator=(const AdvancedLinearSearch&) = delete;
     
     py::array_t<int> search(py::array_t<float> query, int k) override;
-private:
-    void parallel_sort(std::pair<float, size_t>* distances, int k);
 };
 
 class AdvancedKNNSearch : public BaseAdvancedSearch {

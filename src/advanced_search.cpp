@@ -18,27 +18,7 @@ float BaseAdvancedSearch::cosine_distance(const float* a, const float* b, size_t
     return 1.0f - dot / std::sqrt(denom_a * denom_b);
 }
 
-// Advanced Linear Search Implementation
-AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors) {
-    py::buffer_info buf = vectors.request();
-    if (buf.ndim != 2) {
-        throw std::runtime_error("Number of dimensions must be 2");
-    }
-    
-    m_num_vectors = buf.shape[0];
-    m_vector_size = buf.shape[1];
-
-    size_t total_size = m_num_vectors * m_vector_size;
-    m_data = new float[total_size];
-    
-    std::memcpy(m_data, buf.ptr, sizeof(float) * total_size);
-}
-
-AdvancedLinearSearch::~AdvancedLinearSearch() {
-    delete[] m_data;
-}
-
-void AdvancedLinearSearch::parallel_sort(std::pair<float, size_t>* distances, int k) {
+void BaseAdvancedSearch::parallel_sort(std::pair<float, size_t>* distances, int k) {
     int num_threads = 4;
     int block_size = (k + num_threads - 1) / num_threads;
     
@@ -58,6 +38,26 @@ void AdvancedLinearSearch::parallel_sort(std::pair<float, size_t>* distances, in
             }
         }
     }
+}
+
+// Advanced Linear Search Implementation
+AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors) {
+    py::buffer_info buf = vectors.request();
+    if (buf.ndim != 2) {
+        throw std::runtime_error("Number of dimensions must be 2");
+    }
+    
+    m_num_vectors = buf.shape[0];
+    m_vector_size = buf.shape[1];
+
+    size_t total_size = m_num_vectors * m_vector_size;
+    m_data = new float[total_size];
+    
+    std::memcpy(m_data, buf.ptr, sizeof(float) * total_size);
+}
+
+AdvancedLinearSearch::~AdvancedLinearSearch() {
+    delete[] m_data;
 }
 
 py::array_t<int> AdvancedLinearSearch::search(py::array_t<float> query, int k) {
@@ -306,22 +306,26 @@ py::array_t<int> AdvancedKNNSearch::search(py::array_t<float> query, int k) {
 
     const float* query_ptr = static_cast<float*>(buf.ptr);
     
-    // If k equals total number of vectors, return all indices sorted by distance
-    if (k >= static_cast<int>(m_num_vectors)) {
-        std::vector<std::pair<float, size_t>> all_distances(m_num_vectors);
-        #pragma omp parallel for schedule(static)
+    // Use parallel_sort if k >= m_num_vectors / 2
+    if (k >= static_cast<int>(m_num_vectors/2)) {
+        std::pair<float, size_t>* distances = new std::pair<float, size_t>[m_num_vectors];
+        
+        #pragma omp parallel for
         for (size_t i = 0; i < m_num_vectors; ++i) {
-            float dist = cosine_distance(query_ptr, m_data + i * m_vector_size, m_vector_size);
-            all_distances[i] = {dist, i};
+            distances[i] = {cosine_distance(query_ptr, m_data + i * m_vector_size, m_vector_size), i};
         }
         
-        std::sort(all_distances.begin(), all_distances.end());
+        k = std::min(k, static_cast<int>(m_num_vectors));
+        std::nth_element(distances, distances + k, distances + m_num_vectors);
+        parallel_sort(distances, k);
         
-        py::array_t<int> result(m_num_vectors);
-        auto result_ptr = result.mutable_data();
-        for (size_t i = 0; i < m_num_vectors; i++) {
-            result_ptr[i] = all_distances[i].second;
+        py::array_t<int> result(k);
+        #pragma omp parallel for
+        for (int i = 0; i < k; ++i) {
+            result.mutable_at(i) = distances[i].second;
         }
+        
+        delete[] distances;
         return result;
     }
     
