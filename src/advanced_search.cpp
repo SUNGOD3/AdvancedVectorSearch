@@ -150,7 +150,7 @@ size_t AdvancedKNNSearch::find_furthest_point(const std::vector<size_t>& indices
 void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, std::vector<size_t>& indices) {
     if (indices.empty()) return;
     node = std::make_unique<BallNode>();
-    // For small number of points, store them directly
+    
     if (indices.size() <= 128) {
         node->points = indices;
         node->center_idx = indices[0];
@@ -160,112 +160,70 @@ void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, std::vector<
 
     const size_t sample_size = std::min(size_t(512), indices.size());
     
-    // Select center point & compute mean
-    size_t center_idx = indices[0];
-    float min_distance_sum = std::numeric_limits<float>::max();
-    
     std::vector<float> mean(m_vector_size, 0.0f);
-
+    std::vector<size_t> sampled_indices;
+    
     for (size_t i = 0; i < sample_size; ++i) {
-        const float* point = m_data + indices[i] * m_vector_size;
+        size_t rand_idx = i < indices.size() ? i : rand() % indices.size();
+        sampled_indices.push_back(indices[rand_idx]);
+        
+        const float* point = m_data + indices[rand_idx] * m_vector_size;
         for (size_t j = 0; j < m_vector_size; ++j) {
             mean[j] += point[j];
         }
-        float distance_sum = 0.0f;
-
-        for (size_t j = 0; j < sample_size; ++j) {
-            const float* point_b = m_data + indices[j] * m_vector_size;
-            distance_sum += cosine_distance(point, point_b, m_vector_size);
-        }
-
-        if (distance_sum < min_distance_sum) {
-            min_distance_sum = distance_sum;
-            center_idx = indices[i];
-        }
     }
-    node->center_idx = center_idx;
-
+    
     for (size_t j = 0; j < m_vector_size; ++j) {
         mean[j] /= sample_size;
     }
-
-    // Find principal direction using power iteration
-    std::vector<float> principal_direction(m_vector_size, 1.0f); 
-    for (int iter = 0; iter < 4; ++iter) {
-        std::vector<float> new_direction(m_vector_size, 0.0f);
-
-        for (size_t i = 0; i < sample_size; ++i) {
-            const float* point = m_data + indices[i] * m_vector_size;
-            std::vector<float> centered_point(m_vector_size);
-
-            for (size_t j = 0; j < m_vector_size; ++j) {
-                centered_point[j] = point[j] - mean[j];
-            }
-
-            float proj = 0.0f;
-            for (size_t j = 0; j < m_vector_size; ++j) {
-                proj += centered_point[j] * principal_direction[j];
-            }
-
-            for (size_t j = 0; j < m_vector_size; ++j) {
-                new_direction[j] += proj * centered_point[j];
-            }
-        }
-
-        float norm = 0.0f;
-        for (size_t j = 0; j < m_vector_size; ++j) {
-            norm += new_direction[j] * new_direction[j];
-        }
-        norm = std::sqrt(norm);
-
-        if (norm > 1e-7) {
-            for (size_t j = 0; j < m_vector_size; ++j) {
-                principal_direction[j] = new_direction[j] / norm;
-            }
-        }
-    }
-
-    // Partition points based on projection
-    std::vector<std::pair<float, size_t>> projections;
-    projections.reserve(indices.size());
     
-    for (size_t idx : indices) {
+    float min_distance = std::numeric_limits<float>::max();
+    size_t center_idx = indices[0];
+    
+    for (size_t idx : sampled_indices) {
         const float* point = m_data + idx * m_vector_size;
-        std::vector<float> centered_point(m_vector_size);
-
+        float dist = 0.0f;
+        
         for (size_t j = 0; j < m_vector_size; ++j) {
-            centered_point[j] = point[j] - mean[j];
+            float diff = point[j] - mean[j];
+            dist += diff * diff;
         }
-
-        float proj = 0.0f;
-        for (size_t j = 0; j < m_vector_size; ++j) {
-            proj += centered_point[j] * principal_direction[j];
+        
+        if (dist < min_distance) {
+            min_distance = dist;
+            center_idx = idx;
         }
-
-        projections.emplace_back(proj, idx);
     }
-
-    size_t mid = projections.size() / 2;
-    std::nth_element(projections.begin(), projections.begin() + mid, projections.end());
-
-    // Split points and recursively build subtrees
-    std::vector<size_t> left_indices{node->center_idx}, right_indices;
-    for (const auto& projection : projections) {
-        float proj = projection.first;
-        size_t idx = projection.second;
-
-        if (idx == node->center_idx) continue;
-
-        if (proj < projections[mid].first) {
-            left_indices.push_back(idx);
+    
+    node->center_idx = center_idx;
+    
+    std::vector<std::pair<float, size_t>> distances;
+    distances.reserve(indices.size());
+    
+    const float* center_point = m_data + center_idx * m_vector_size;
+    for (size_t idx : indices) {
+        if (idx == center_idx) continue;
+        
+        const float* point = m_data + idx * m_vector_size;
+        float dist = cosine_distance(center_point, point, m_vector_size);
+        distances.emplace_back(dist, idx);
+    }
+    
+    size_t mid = distances.size() / 2;
+    std::nth_element(distances.begin(), distances.begin() + mid, distances.end());
+    
+    std::vector<size_t> left_indices{center_idx}, right_indices;
+    for (const auto& dist_pair : distances) {
+        if (dist_pair.first < distances[mid].first) {
+            left_indices.push_back(dist_pair.second);
         } else {
-            right_indices.push_back(idx);
+            right_indices.push_back(dist_pair.second);
         }
     }
-
-    node->radius = compute_radius(indices, node->center_idx);
+    
+    node->radius = compute_radius(indices, center_idx);
     node->points = std::move(indices);
-
+    
     if (!left_indices.empty()) build_tree(node->left, left_indices);
     if (!right_indices.empty()) build_tree(node->right, right_indices);
 }

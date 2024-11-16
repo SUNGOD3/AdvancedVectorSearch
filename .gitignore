@@ -5,3 +5,4 @@ build/
 data/
 *.fvecs
 *.ivecs
+best.txt
