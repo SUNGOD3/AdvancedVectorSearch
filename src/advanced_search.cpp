@@ -318,8 +318,9 @@ py::array_t<int> AdvancedKNNSearch::search(py::array_t<float> query, int k) {
         std::sort(all_distances.begin(), all_distances.end());
         
         py::array_t<int> result(m_num_vectors);
+        auto result_ptr = result.mutable_data();
         for (size_t i = 0; i < m_num_vectors; i++) {
-            result.mutable_at(i) = all_distances[i].second;
+            result_ptr[i] = all_distances[i].second;
         }
         return result;
     }
@@ -331,18 +332,18 @@ py::array_t<int> AdvancedKNNSearch::search(py::array_t<float> query, int k) {
     search_ball_tree(root.get(), query_ptr, results, worst_dist, k);
     
     // Convert results to sorted array
-    std::vector<std::pair<float, size_t>> sorted_results;
+    std::vector<int> sorted_indices;
+    sorted_indices.reserve(results.size());
     while (!results.empty()) {
-        sorted_results.push_back(results.top());
+        sorted_indices.push_back(results.top().second);
         results.pop();
     }
-    std::reverse(sorted_results.begin(), sorted_results.end());
+    std::reverse(sorted_indices.begin(), sorted_indices.end());
     
     // Create return array
-    py::array_t<int> result(sorted_results.size());
-    for (size_t i = 0; i < sorted_results.size(); i++) {
-        result.mutable_at(i) = sorted_results[i].second;
-    }
+    py::array_t<int> result(sorted_indices.size());
+    auto result_ptr = result.mutable_data();
+    std::copy(sorted_indices.begin(), sorted_indices.end(), result_ptr);
 
     return result;
 }
