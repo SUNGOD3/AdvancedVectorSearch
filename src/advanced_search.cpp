@@ -235,48 +235,27 @@ void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
                                         int k) const {
     if (!node) return;
 
-    // Calculate distance to center with SIMD optimization
+    // Calculate distance to center
     const float* center = m_data + node->center_idx * m_vector_size;
-    float dot = 0.0f, denom_a = 0.0f, denom_b = 0.0f;
+    float dist_to_center = cosine_distance(center, query, m_vector_size);
     
-    #pragma omp simd reduction(+:dot,denom_a,denom_b)
-    for (size_t i = 0; i < m_vector_size; ++i) {
-        dot += center[i] * query[i];
-        denom_a += center[i] * center[i];
-        denom_b += query[i] * query[i];
-    }
-    float dist_to_center = 1.0f - dot / std::sqrt(denom_a * denom_b);
-    
-    // Early pruning check
+    // Early pruning: skip if this node cannot contain better points
     if (results.size() == static_cast<size_t>(k) && 
         dist_to_center - node->radius > worst_dist) {
         return;
     }
     
-    // Leaf node processing
+    // Process leaf node
     if (!node->left && !node->right) {
-        // Process points in small batches to maintain cache efficiency
-        const size_t batch_size = 16;
-        const size_t num_points = node->points.size();
-        
-        for (size_t batch_start = 0; batch_start < num_points; batch_start += batch_size) {
-            const size_t batch_end = std::min(batch_start + batch_size, num_points);
-            
-            // Process each point in the batch
-            for (size_t i = batch_start; i < batch_end; ++i) {
-                size_t idx = node->points[i];
-                const float* point = m_data + idx * m_vector_size;
-                
-                float dot = 0.0f, denom_a = 0.0f;
-                
-                #pragma omp simd reduction(+:dot,denom_a)
-                for (size_t j = 0; j < m_vector_size; ++j) {
-                    dot += point[j] * query[j];
-                    denom_a += point[j] * point[j];
-                }
-                
-                float dist = 1.0f - dot / std::sqrt(denom_a * denom_b);
-                
+        #pragma omp parallel for
+        for (size_t i = 0; i < node->points.size(); ++i) {
+            size_t idx = node->points[i];
+            const float* point = m_data + idx * m_vector_size;
+            float dist = cosine_distance(point, query, m_vector_size);
+
+            #pragma omp critical
+            {
+                // Update results if we found a better point
                 if (results.size() < static_cast<size_t>(k)) {
                     results.push({dist, idx});
                     if (results.size() == static_cast<size_t>(k)) {
@@ -292,27 +271,16 @@ void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
         return;
     }
     
-    // Recursively search both subtrees
+    // For internal nodes, recursively search children
     if (node->left && node->right) {
-        // Calculate distances to both child centers
+        // Calculate distances to both children's centers
         const float* left_center = m_data + node->left->center_idx * m_vector_size;
         const float* right_center = m_data + node->right->center_idx * m_vector_size;
         
-        float left_dot = 0.0f, left_norm = 0.0f;
-        float right_dot = 0.0f, right_norm = 0.0f;
+        float dist_to_left = cosine_distance(left_center, query, m_vector_size);
+        float dist_to_right = cosine_distance(right_center, query, m_vector_size);
         
-        #pragma omp simd reduction(+:left_dot,left_norm,right_dot,right_norm)
-        for (size_t i = 0; i < m_vector_size; ++i) {
-            left_dot += left_center[i] * query[i];
-            left_norm += left_center[i] * left_center[i];
-            right_dot += right_center[i] * query[i];
-            right_norm += right_center[i] * right_center[i];
-        }
-        
-        float dist_to_left = 1.0f - left_dot / std::sqrt(left_norm * denom_b);
-        float dist_to_right = 1.0f - right_dot / std::sqrt(right_norm * denom_b);
-        
-        // Visit closer node first
+        // Visit closer node first for better pruning
         if (dist_to_left < dist_to_right) {
             search_ball_tree(node->left.get(), query, results, worst_dist, k);
             search_ball_tree(node->right.get(), query, results, worst_dist, k);
@@ -321,6 +289,7 @@ void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
             search_ball_tree(node->left.get(), query, results, worst_dist, k);
         }
     } else {
+        // Handle cases where only one child exists
         if (node->left) search_ball_tree(node->left.get(), query, results, worst_dist, k);
         if (node->right) search_ball_tree(node->right.get(), query, results, worst_dist, k);
     }
