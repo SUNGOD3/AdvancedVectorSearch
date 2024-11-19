@@ -105,67 +105,66 @@ AdvancedKNNSearch::AdvancedKNNSearch(py::array_t<float> vectors) {
     m_data = new float[total_size];
     std::memcpy(m_data, buf.ptr, sizeof(float) * total_size);
 
-    // Build ball tree
-    std::vector<size_t> indices(m_num_vectors);
+    // Initialize indices array
+    size_t* indices = new size_t[m_num_vectors];
     for (size_t i = 0; i < m_num_vectors; ++i) {
         indices[i] = i;
     }
-    build_tree(root, indices);
+    
+    build_tree(root, indices, m_num_vectors);
+    delete[] indices;
 }
 
-AdvancedKNNSearch::~AdvancedKNNSearch() {
-    delete[] m_data;
-}
-
-float AdvancedKNNSearch::compute_radius(const std::vector<size_t>& indices, size_t center_idx) {
+float AdvancedKNNSearch::compute_radius(const size_t* indices, size_t num_indices, size_t center_idx) {
     float max_dist = 0.0f;
     const float* center = m_data + center_idx * m_vector_size;
     
-    for (size_t idx : indices) {
-        if (idx == center_idx) continue;
-        const float* point = m_data + idx * m_vector_size;
+    for (size_t i = 0; i < num_indices; ++i) {
+        if (indices[i] == center_idx) continue;
+        const float* point = m_data + indices[i] * m_vector_size;
         float dist = cosine_distance(center, point, m_vector_size);
         max_dist = std::max(max_dist, dist);
     }
     return max_dist;
 }
 
-size_t AdvancedKNNSearch::find_furthest_point(const std::vector<size_t>& indices, size_t center_idx) {
+size_t AdvancedKNNSearch::find_furthest_point(const size_t* indices, size_t num_indices, size_t center_idx) {
     float max_dist = -1.0f;
     size_t furthest_idx = center_idx;
     const float* center = m_data + center_idx * m_vector_size;
     
-    for (size_t idx : indices) {
-        if (idx == center_idx) continue;
-        const float* point = m_data + idx * m_vector_size;
+    for (size_t i = 0; i < num_indices; ++i) {
+        if (indices[i] == center_idx) continue;
+        const float* point = m_data + indices[i] * m_vector_size;
         float dist = cosine_distance(center, point, m_vector_size);
         if (dist > max_dist) {
             max_dist = dist;
-            furthest_idx = idx;
+            furthest_idx = indices[i];
         }
     }
     return furthest_idx;
 }
 
-void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, std::vector<size_t>& indices) {
-    if (indices.empty()) return;
+void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, size_t* indices, size_t num_indices) {
+    if (num_indices == 0) return;
     node = std::make_unique<BallNode>();
     
-    if (indices.size() <= 128) {
-        node->points = indices;
+    if (num_indices <= 128) {
+        node->points = new size_t[num_indices];
+        node->num_points = num_indices;
+        std::memcpy(node->points, indices, sizeof(size_t) * num_indices);
         node->center_idx = indices[0];
-        node->radius = compute_radius(indices, node->center_idx);
+        node->radius = compute_radius(indices, num_indices, node->center_idx);
         return;
     }
 
-    const size_t sample_size = std::min(size_t(512), indices.size());
-    
-    std::vector<float> mean(m_vector_size, 0.0f);
-    std::vector<size_t> sampled_indices;
+    const size_t sample_size = std::min(size_t(512), num_indices);
+    float* mean = new float[m_vector_size]();
+    size_t* sampled_indices = new size_t[sample_size];
     
     for (size_t i = 0; i < sample_size; ++i) {
-        size_t rand_idx = i < indices.size() ? i : rand() % indices.size();
-        sampled_indices.push_back(indices[rand_idx]);
+        size_t rand_idx = i < num_indices ? i : rand() % num_indices;
+        sampled_indices[i] = indices[rand_idx];
         
         const float* point = m_data + indices[rand_idx] * m_vector_size;
         for (size_t j = 0; j < m_vector_size; ++j) {
@@ -180,8 +179,8 @@ void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, std::vector<
     float min_distance = std::numeric_limits<float>::max();
     size_t center_idx = indices[0];
     
-    for (size_t idx : sampled_indices) {
-        const float* point = m_data + idx * m_vector_size;
+    for (size_t i = 0; i < sample_size; ++i) {
+        const float* point = m_data + sampled_indices[i] * m_vector_size;
         float dist = 0.0f;
         
         for (size_t j = 0; j < m_vector_size; ++j) {
@@ -191,64 +190,78 @@ void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, std::vector<
         
         if (dist < min_distance) {
             min_distance = dist;
-            center_idx = idx;
+            center_idx = sampled_indices[i];
         }
     }
+    
+    delete[] mean;
+    delete[] sampled_indices;
     
     node->center_idx = center_idx;
     
-    std::vector<std::pair<float, size_t>> distances;
-    distances.reserve(indices.size());
+    std::pair<float, size_t>* distances = new std::pair<float, size_t>[num_indices];
+    size_t distance_count = 0;
     
     const float* center_point = m_data + center_idx * m_vector_size;
-    for (size_t idx : indices) {
-        if (idx == center_idx) continue;
+    for (size_t i = 0; i < num_indices; ++i) {
+        if (indices[i] == center_idx) continue;
         
-        const float* point = m_data + idx * m_vector_size;
+        const float* point = m_data + indices[i] * m_vector_size;
         float dist = cosine_distance(center_point, point, m_vector_size);
-        distances.emplace_back(dist, idx);
+        distances[distance_count++] = {dist, indices[i]};
     }
     
-    size_t mid = distances.size() / 2;
-    std::nth_element(distances.begin(), distances.begin() + mid, distances.end());
+    size_t mid = distance_count / 2;
+    std::nth_element(distances, distances + mid, distances + distance_count);
     
-    std::vector<size_t> left_indices{center_idx}, right_indices;
-    for (const auto& dist_pair : distances) {
-        if (dist_pair.first < distances[mid].first) {
-            left_indices.push_back(dist_pair.second);
+    size_t* left_indices = new size_t[distance_count + 1];
+    size_t* right_indices = new size_t[distance_count];
+    size_t left_count = 1, right_count = 0;
+    
+    left_indices[0] = center_idx;
+    
+    for (size_t i = 0; i < distance_count; ++i) {
+        if (i < mid) {
+            left_indices[left_count++] = distances[i].second;
         } else {
-            right_indices.push_back(dist_pair.second);
+            right_indices[right_count++] = distances[i].second;
         }
     }
     
-    node->radius = compute_radius(indices, center_idx);
-    node->points = std::move(indices);
+    delete[] distances;
     
-    if (!left_indices.empty()) build_tree(node->left, left_indices);
-    if (!right_indices.empty()) build_tree(node->right, right_indices);
+    node->radius = compute_radius(indices, num_indices, center_idx);
+    node->points = new size_t[num_indices];
+    node->num_points = num_indices;
+    std::memcpy(node->points, indices, sizeof(size_t) * num_indices);
+    
+    if (left_count > 0) build_tree(node->left, left_indices, left_count);
+    if (right_count > 0) build_tree(node->right, right_indices, right_count);
+    
+    delete[] left_indices;
+    delete[] right_indices;
 }
 
 void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
                                         const float* query,
-                                        std::priority_queue<std::pair<float, size_t>>& results,
+                                        std::pair<float, size_t>* results,
+                                        size_t& result_size,
                                         float& worst_dist,
-                                        int k) const {
+                                        size_t k) const {
     if (!node) return;
 
-    // Calculate distance to center
     const float* center = m_data + node->center_idx * m_vector_size;
     float dist_to_center = cosine_distance(center, query, m_vector_size);
     
     // Early pruning: skip if this node cannot contain better points
-    if (results.size() == static_cast<size_t>(k) && 
-        dist_to_center - node->radius > worst_dist) {
+    if (result_size == k && dist_to_center - node->radius > worst_dist) {
         return;
     }
     
     // Process leaf node
     if (!node->left && !node->right) {
         #pragma omp parallel for
-        for (size_t i = 0; i < node->points.size(); ++i) {
+        for (size_t i = 0; i < node->num_points; ++i) {
             size_t idx = node->points[i];
             const float* point = m_data + idx * m_vector_size;
             float dist = cosine_distance(point, query, m_vector_size);
@@ -256,15 +269,17 @@ void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
             #pragma omp critical
             {
                 // Update results if we found a better point
-                if (results.size() < static_cast<size_t>(k)) {
-                    results.push({dist, idx});
-                    if (results.size() == static_cast<size_t>(k)) {
-                        worst_dist = results.top().first;
+                if (result_size < k) {
+                    results[result_size++] = {dist, idx};
+                    if (result_size == k) {
+                        std::make_heap(results, results + k);
+                        worst_dist = results[0].first;
                     }
                 } else if (dist < worst_dist) {
-                    results.pop();
-                    results.push({dist, idx});
-                    worst_dist = results.top().first;
+                    std::pop_heap(results, results + k);
+                    results[k-1] = {dist, idx};
+                    std::push_heap(results, results + k);
+                    worst_dist = results[0].first;
                 }
             }
         }
@@ -279,19 +294,19 @@ void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
         
         float dist_to_left = cosine_distance(left_center, query, m_vector_size);
         float dist_to_right = cosine_distance(right_center, query, m_vector_size);
-        
-        // Visit closer node first for better pruning
+
+        // Visit closer node first for better pruning        
         if (dist_to_left < dist_to_right) {
-            search_ball_tree(node->left.get(), query, results, worst_dist, k);
-            search_ball_tree(node->right.get(), query, results, worst_dist, k);
+            search_ball_tree(node->left.get(), query, results, result_size, worst_dist, k);
+            search_ball_tree(node->right.get(), query, results, result_size, worst_dist, k);
         } else {
-            search_ball_tree(node->right.get(), query, results, worst_dist, k);
-            search_ball_tree(node->left.get(), query, results, worst_dist, k);
+            search_ball_tree(node->right.get(), query, results, result_size, worst_dist, k);
+            search_ball_tree(node->left.get(), query, results, result_size, worst_dist, k);
         }
     } else {
         // Handle cases where only one child exists
-        if (node->left) search_ball_tree(node->left.get(), query, results, worst_dist, k);
-        if (node->right) search_ball_tree(node->right.get(), query, results, worst_dist, k);
+        if (node->left) search_ball_tree(node->left.get(), query, results, result_size, worst_dist, k);
+        if (node->right) search_ball_tree(node->right.get(), query, results, result_size, worst_dist, k);
     }
 }
 
@@ -320,34 +335,37 @@ py::array_t<int> AdvancedKNNSearch::search(py::array_t<float> query, int k) {
         parallel_sort(distances, k);
         
         py::array_t<int> result(k);
+        auto result_ptr = result.mutable_data();
+        
         #pragma omp parallel for
         for (int i = 0; i < k; ++i) {
-            result.mutable_at(i) = distances[i].second;
+            result_ptr[i] = distances[i].second;
         }
         
         delete[] distances;
         return result;
     }
     
-    // Regular k-NN search for k < m_num_vectors
-    std::priority_queue<std::pair<float, size_t>> results;
+    std::pair<float, size_t>* results = new std::pair<float, size_t>[k];
+    size_t result_size = 0;
     float worst_dist = std::numeric_limits<float>::max();
     
-    search_ball_tree(root.get(), query_ptr, results, worst_dist, k);
+    search_ball_tree(root.get(), query_ptr, results, result_size, worst_dist, k);
     
-    // Convert results to sorted array
-    std::vector<int> sorted_indices;
-    sorted_indices.reserve(results.size());
-    while (!results.empty()) {
-        sorted_indices.push_back(results.top().second);
-        results.pop();
-    }
-    std::reverse(sorted_indices.begin(), sorted_indices.end());
+    std::sort_heap(results, results + result_size);
     
-    // Create return array
-    py::array_t<int> result(sorted_indices.size());
+    py::array_t<int> result(result_size);
     auto result_ptr = result.mutable_data();
-    std::copy(sorted_indices.begin(), sorted_indices.end(), result_ptr);
-
+        for (size_t i = 0; i < result_size; ++i) {
+        result_ptr[i] = results[i].second;
+    }
+    
+    delete[] results;
     return result;
+}
+
+AdvancedKNNSearch::~AdvancedKNNSearch() {
+    // Base class destructor will handle m_data
+    // root's destructor will automatically clean up the entire tree
+    // through the recursive destruction of unique_ptrs and BallNode destructor
 }
