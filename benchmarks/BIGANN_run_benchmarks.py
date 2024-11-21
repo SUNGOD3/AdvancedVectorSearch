@@ -112,7 +112,7 @@ class BenchmarkRunner:
         
         # Initialize search index
         start_time = time.time()
-        search_instance = search_class(self.base_vectors)
+        search_instance = search_class(self.base_vectors, metric="l2")
         build_time = time.time() - start_time
         
         recalls = []

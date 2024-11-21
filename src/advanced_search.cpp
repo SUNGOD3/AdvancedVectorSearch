@@ -18,6 +18,18 @@ float BaseAdvancedSearch::cosine_distance(const float* a, const float* b, size_t
     return 1.0f - dot / std::sqrt(denom_a * denom_b);
 }
 
+float BaseAdvancedSearch::l2_distance(const float* a, const float* b, size_t size) {
+    float sum = 0.0f;
+    
+    #pragma omp simd reduction(+:sum)
+    for (size_t i = 0; i < size; ++i) {
+        float diff = a[i] - b[i];
+        sum += diff * diff;
+    }
+    
+    return std::sqrt(sum);
+}
+
 void BaseAdvancedSearch::parallel_sort(std::pair<float, size_t>* distances, int k) {
     int num_threads = 4;
     int block_size = (k + num_threads - 1) / num_threads;
@@ -41,7 +53,7 @@ void BaseAdvancedSearch::parallel_sort(std::pair<float, size_t>* distances, int 
 }
 
 // Advanced Linear Search Implementation
-AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors) {
+AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors, const std::string& metric) {
     py::buffer_info buf = vectors.request();
     if (buf.ndim != 2) {
         throw std::runtime_error("Number of dimensions must be 2");
@@ -49,6 +61,8 @@ AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors) {
     
     m_num_vectors = buf.shape[0];
     m_vector_size = buf.shape[1];
+    
+    m_metric = (metric == "l2") ? DistanceMetric::L2 : DistanceMetric::COSINE;
 
     size_t total_size = m_num_vectors * m_vector_size;
     m_data = new float[total_size];
@@ -74,7 +88,7 @@ py::array_t<int> AdvancedLinearSearch::search(py::array_t<float> query, int k) {
 
     #pragma omp parallel for
     for (size_t i = 0; i < m_num_vectors; ++i) {
-        distances[i] = {cosine_distance(query_ptr, m_data + i * m_vector_size, m_vector_size), i};
+        distances[i] = {compute_distance(query_ptr, m_data + i * m_vector_size, m_vector_size), i};
     }
 
     k = std::min(k, static_cast<int>(m_num_vectors));
@@ -92,7 +106,7 @@ py::array_t<int> AdvancedLinearSearch::search(py::array_t<float> query, int k) {
 }
 
 // Advanced KNN Search Implementation
-AdvancedKNNSearch::AdvancedKNNSearch(py::array_t<float> vectors) {
+AdvancedKNNSearch::AdvancedKNNSearch(py::array_t<float> vectors, const std::string& metric) {
     py::buffer_info buf = vectors.request();
     if (buf.ndim != 2) {
         throw std::runtime_error("Number of dimensions must be 2");
@@ -100,6 +114,7 @@ AdvancedKNNSearch::AdvancedKNNSearch(py::array_t<float> vectors) {
     
     m_num_vectors = buf.shape[0];
     m_vector_size = buf.shape[1];
+    m_metric = (metric == "l2") ? DistanceMetric::L2 : DistanceMetric::COSINE;
 
     size_t total_size = m_num_vectors * m_vector_size;
     m_data = new float[total_size];
@@ -122,7 +137,7 @@ float AdvancedKNNSearch::compute_radius(const size_t* indices, size_t num_indice
     for (size_t i = 0; i < num_indices; ++i) {
         if (indices[i] == center_idx) continue;
         const float* point = m_data + indices[i] * m_vector_size;
-        float dist = cosine_distance(center, point, m_vector_size);
+        float dist = compute_distance(center, point, m_vector_size);
         max_dist = std::max(max_dist, dist);
     }
     return max_dist;
@@ -136,7 +151,7 @@ size_t AdvancedKNNSearch::find_furthest_point(const size_t* indices, size_t num_
     for (size_t i = 0; i < num_indices; ++i) {
         if (indices[i] == center_idx) continue;
         const float* point = m_data + indices[i] * m_vector_size;
-        float dist = cosine_distance(center, point, m_vector_size);
+        float dist = compute_distance(center, point, m_vector_size);
         if (dist > max_dist) {
             max_dist = dist;
             furthest_idx = indices[i];
@@ -207,7 +222,7 @@ void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, size_t* indi
         if (indices[i] == center_idx) continue;
         
         const float* point = m_data + indices[i] * m_vector_size;
-        float dist = cosine_distance(center_point, point, m_vector_size);
+        float dist = compute_distance(center_point, point, m_vector_size);
         distances[distance_count++] = {dist, indices[i]};
     }
     
@@ -251,7 +266,7 @@ void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
     if (!node) return;
 
     const float* center = m_data + node->center_idx * m_vector_size;
-    float dist_to_center = cosine_distance(center, query, m_vector_size);
+    float dist_to_center = compute_distance(center, query, m_vector_size);
     
     // Early pruning: skip if this node cannot contain better points
     if (result_size == k && dist_to_center - node->radius > worst_dist) {
@@ -264,7 +279,7 @@ void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
         for (size_t i = 0; i < node->num_points; ++i) {
             size_t idx = node->points[i];
             const float* point = m_data + idx * m_vector_size;
-            float dist = cosine_distance(point, query, m_vector_size);
+            float dist = compute_distance(point, query, m_vector_size);
 
             #pragma omp critical
             {
@@ -292,8 +307,8 @@ void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
         const float* left_center = m_data + node->left->center_idx * m_vector_size;
         const float* right_center = m_data + node->right->center_idx * m_vector_size;
         
-        float dist_to_left = cosine_distance(left_center, query, m_vector_size);
-        float dist_to_right = cosine_distance(right_center, query, m_vector_size);
+        float dist_to_left = compute_distance(left_center, query, m_vector_size);
+        float dist_to_right = compute_distance(right_center, query, m_vector_size);
 
         // Visit closer node first for better pruning        
         if (dist_to_left < dist_to_right) {
@@ -327,7 +342,7 @@ py::array_t<int> AdvancedKNNSearch::search(py::array_t<float> query, int k) {
         
         #pragma omp parallel for
         for (size_t i = 0; i < m_num_vectors; ++i) {
-            distances[i] = {cosine_distance(query_ptr, m_data + i * m_vector_size, m_vector_size), i};
+            distances[i] = {compute_distance(query_ptr, m_data + i * m_vector_size, m_vector_size), i};
         }
         
         k = std::min(k, static_cast<int>(m_num_vectors));

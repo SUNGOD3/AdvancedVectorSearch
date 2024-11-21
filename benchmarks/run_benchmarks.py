@@ -33,9 +33,139 @@ def run_benchmark(search_method, vectors, queries, k):
     end_time = time.time()
     return results, end_time - start_time
 
+def benchmark_dataset(vectors, queries, k, dataset_name, metric):
+    """
+    Run benchmark for a specific dataset and metric.
+    
+    :param vectors: Dataset vectors
+    :param queries: Query vectors
+    :param k: Number of nearest neighbors
+    :param dataset_name: Name of the dataset
+    :param metric: Distance metric to use
+    :return: Dictionary containing benchmark results
+    """
+    print(f"\nRunning benchmark for {dataset_name} dataset with {metric} metric:")
+    print(f"Vectors: {len(vectors)}, Queries: {len(queries)}, k={k}")
+
+    # Initialize all search methods
+    linear_search_training_start = time.time()
+    linear_search = LinearSearch(vectors, metric=metric)
+    linear_search_training_time = time.time() - linear_search_training_start
+
+    advanced_linear_training_start = time.time()
+    advanced_linear = AdvancedLinearSearch(vectors, metric=metric)
+    advanced_linear_training_time = time.time() - advanced_linear_training_start
+
+    advanced_knn_training_start = time.time()
+    advanced_knn = AdvancedKNNSearch(vectors, metric=metric)
+    advanced_knn_training_time = time.time() - advanced_knn_training_start
+
+    faiss_search_training_start = time.time()
+    faiss_search = FaissSearch(vectors, metric=metric)
+    faiss_search_training_time = time.time() - faiss_search_training_start
+
+    # Run benchmarks
+    linear_results, linear_time = run_benchmark(linear_search, vectors, queries, k)
+    advanced_linear_results, advanced_linear_time = run_benchmark(advanced_linear, vectors, queries, k)
+    advanced_knn_results, advanced_knn_time = run_benchmark(advanced_knn, vectors, queries, k)
+    faiss_results, faiss_time = run_benchmark(faiss_search, vectors, queries, k)
+
+    # Calculate accuracy against linear search (ground truth)
+    advanced_linear_accuracy = evaluate_accuracy(linear_results, advanced_linear_results)
+    advanced_knn_accuracy = evaluate_accuracy(linear_results, advanced_knn_results)
+    faiss_accuracy = evaluate_accuracy(linear_results, faiss_results)
+
+    # Print results
+    print(f"Linear search time: {linear_time:.4f} s, accuracy: 1.0 (ground truth), training time: {linear_search_training_time:.4f} s")
+    print(f"Advanced linear search time: {advanced_linear_time:.4f} s, accuracy: {advanced_linear_accuracy:.4f}, training time: {advanced_linear_training_time:.4f} s")
+    print(f"Advanced KNN search time: {advanced_knn_time:.4f} s, accuracy: {advanced_knn_accuracy:.4f}, training time: {advanced_knn_training_time:.4f} s")
+    print(f"Faiss search time: {faiss_time:.4f} s, accuracy: {faiss_accuracy:.4f}, training time: {faiss_search_training_time:.4f} s")
+
+    return {
+        "linear_search": {
+            "training_time": linear_search_training_time,
+            "time": linear_time
+        },
+        "advanced_linear_search": {
+            "training_time": advanced_linear_training_time,
+            "time": advanced_linear_time,
+            "accuracy": advanced_linear_accuracy
+        },
+        "advanced_knn_search": {
+            "training_time": advanced_knn_training_time,
+            "time": advanced_knn_time,
+            "accuracy": advanced_knn_accuracy
+        },
+        "faiss_search": {
+            "training_time": faiss_search_training_time,
+            "time": faiss_time,
+            "accuracy": faiss_accuracy
+        }
+    }
+
+def benchmark_large_dataset(vectors, queries, k, dataset_name, metric):
+    """
+    Run benchmark for a large dataset and specific metric.
+    
+    :param vectors: Dataset vectors
+    :param queries: Query vectors
+    :param k: Number of nearest neighbors
+    :param dataset_name: Name of the dataset
+    :param metric: Distance metric to use
+    :return: Dictionary containing benchmark results
+    """
+    print(f"\nRunning benchmark for {dataset_name} dataset with {metric} metric:")
+    print(f"Vectors: {len(vectors)}, Queries: {len(queries)}, k={k}")
+
+    # Initialize optimized search methods
+    advanced_linear_training_start = time.time()
+    advanced_linear = AdvancedLinearSearch(vectors, metric=metric)
+    advanced_linear_training_time = time.time() - advanced_linear_training_start
+
+    advanced_knn_training_start = time.time()
+    advanced_knn = AdvancedKNNSearch(vectors, metric=metric)
+    advanced_knn_training_time = time.time() - advanced_knn_training_start
+
+    faiss_search_training_start = time.time()
+    faiss_search = FaissSearch(vectors, metric=metric)
+    faiss_search_training_time = time.time() - faiss_search_training_start
+
+    # Run benchmarks
+    advanced_linear_results, advanced_linear_time = run_benchmark(advanced_linear, vectors, queries, k)
+    advanced_knn_results, advanced_knn_time = run_benchmark(advanced_knn, vectors, queries, k)
+    faiss_results, faiss_time = run_benchmark(faiss_search, vectors, queries, k)
+
+    # Calculate accuracy (comparing each method with others)
+    advanced_linear_accuracy = evaluate_accuracy(advanced_linear_results, advanced_knn_results)
+    advanced_knn_accuracy = evaluate_accuracy(advanced_knn_results, faiss_results)
+    faiss_accuracy = evaluate_accuracy(faiss_results, advanced_linear_results)
+
+    print(f"Advanced linear search time: {advanced_linear_time:.4f} s, similarity to Advanced KNN: {advanced_linear_accuracy:.4f}, training time: {advanced_linear_training_time:.4f} s")
+    print(f"Advanced KNN search time: {advanced_knn_time:.4f} s, similarity to Faiss: {advanced_knn_accuracy:.4f}, training time: {advanced_knn_training_time:.4f} s")
+    print(f"Faiss search time: {faiss_time:.4f} s, similarity to Advanced Linear: {faiss_accuracy:.4f}, training time: {faiss_search_training_time:.4f} s")
+
+    return {
+        "advanced_linear_search": {
+            "training_time": advanced_linear_training_time,
+            "time": advanced_linear_time,
+            "accuracy": advanced_linear_accuracy
+        },
+        "advanced_knn_search": {
+            "training_time": advanced_knn_training_time,
+            "time": advanced_knn_time,
+            "accuracy": advanced_knn_accuracy
+        },
+        "faiss_search": {
+            "training_time": faiss_search_training_time,
+            "time": faiss_time,
+            "accuracy": faiss_accuracy
+        }
+    }
+
 def main():
-    np.random.seed(42) 
+    np.random.seed(42)
     dimensions = 1024
+    metrics = ["cosine", "l2"]
 
     datasets = {
         "small": {"num_vectors": 100, "num_queries": 10, "k": 10},
@@ -52,120 +182,27 @@ def main():
 
     results = {}
 
-    # Benchmark small datasets
+    # Benchmark regular datasets
     for dataset_name, params in datasets.items():
-        num_vectors = params["num_vectors"]
-        num_queries = params["num_queries"]
-        k = params["k"]
-
-        print(f"\nRunning benchmark for {dataset_name} dataset:")
-        print(f"Vectors: {num_vectors}, Queries: {num_queries}, k={k}")
-        vectors = generate_random_vectors(num_vectors, dimensions)
-        queries = generate_random_vectors(num_queries, dimensions)
-
-        # Initialize all search methods, and record the training time
-        linear_search_training_start = time.time()
-        linear_search = LinearSearch(vectors)
-        linear_search_training_time = time.time() - linear_search_training_start
-        advanced_linear_training_start = time.time()
-        advanced_linear = AdvancedLinearSearch(vectors)
-        advanced_linear_training_time = time.time() - advanced_linear_training_start
-        advanced_knn_training_start = time.time()
-        advanced_knn = AdvancedKNNSearch(vectors)
-        advanced_knn_training_time = time.time() - advanced_knn_training_start
-        faiss_search_training_start = time.time()
-        faiss_search = FaissSearch(vectors)
-        faiss_search_training_time = time.time() - faiss_search_training_start
-
-
-        # Run benchmarks
-        linear_results, linear_time = run_benchmark(linear_search, vectors, queries, k)
-        advanced_linear_results, advanced_linear_time = run_benchmark(advanced_linear, vectors, queries, k)
-        advanced_knn_results, advanced_knn_time = run_benchmark(advanced_knn, vectors, queries, k)
-        faiss_results, faiss_time = run_benchmark(faiss_search, vectors, queries, k)
-
-        # Calculate accuracy against linear search (ground truth)
-        advanced_linear_accuracy = evaluate_accuracy(linear_results, advanced_linear_results)
-        advanced_knn_accuracy = evaluate_accuracy(linear_results, advanced_knn_results)
-        faiss_accuracy = evaluate_accuracy(linear_results, faiss_results)
-
-        results[dataset_name] = {
-            "linear_search": {
-                "training_time": linear_search_training_time,
-                "time": linear_time
-            },
-            "advanced_linear_search": {
-                "training_time": advanced_linear_training_time,
-                "time": advanced_linear_time,
-                "accuracy": advanced_linear_accuracy
-            },
-            "advanced_knn_search": {
-                "training_time": advanced_knn_training_time,
-                "time": advanced_knn_time,
-                "accuracy": advanced_knn_accuracy
-            },
-            "faiss_search": {
-                "training_time": faiss_search_training_time,
-                "time": faiss_time,
-                "accuracy": faiss_accuracy
-            }
-        }
-
-        print(f"Linear search time: {linear_time:.4f} s, accuracy: 1.0 (default), training/building time: {linear_search_training_time:.4f} s")
-        print(f"Advanced linear search time: {advanced_linear_time:.4f} s, accuracy: {advanced_linear_accuracy:.4f}, training/building time: {advanced_linear_training_time:.4f} s")
-        print(f"Advanced KNN search time: {advanced_knn_time:.4f} s, accuracy: {advanced_knn_accuracy:.4f}, training/building time: {advanced_knn_training_time:.4f} s")
-        print(f"Faiss search time: {faiss_time:.4f} s, accuracy: {faiss_accuracy:.4f}, training/building time: {faiss_search_training_time:.4f} s")
+        vectors = generate_random_vectors(params["num_vectors"], dimensions)
+        queries = generate_random_vectors(params["num_queries"], dimensions)
+        
+        results[dataset_name] = {}
+        for metric in metrics:
+            results[dataset_name][metric] = benchmark_dataset(
+                vectors, queries, params["k"], dataset_name, metric
+            )
 
     # Benchmark large datasets
     for dataset_name, params in large_datasets.items():
-        print(f"\nRunning benchmark for {dataset_name} dataset:")
-        print(f"Vectors: {params['num_vectors']}, Queries: {params['num_queries']}, k={params['k']}")
-        
         vectors = generate_random_vectors(params["num_vectors"], dimensions)
         queries = generate_random_vectors(params["num_queries"], dimensions)
-
-        # Initialize optimized search methods, and record the training time
-        advanced_linear_training_start = time.time()
-        advanced_linear = AdvancedLinearSearch(vectors)
-        advanced_linear_training_time = time.time() - advanced_linear_training_start
-        advanced_knn_training_start = time.time()
-        advanced_knn = AdvancedKNNSearch(vectors)
-        advanced_knn_training_time = time.time() - advanced_knn_training_start
-        faiss_search_training_start = time.time()
-        faiss_search = FaissSearch(vectors)
-        faiss_search_training_time = time.time() - faiss_search_training_start
-
-        # Run benchmarks
-        advanced_linear_results, advanced_linear_time = run_benchmark(advanced_linear, vectors, queries, params["k"])
-        advanced_knn_results, advanced_knn_time = run_benchmark(advanced_knn, vectors, queries, params["k"])
-        faiss_results, faiss_time = run_benchmark(faiss_search, vectors, queries, params["k"])
-
-        # accuracy = compare each other
-        advanced_linear_accuracy = evaluate_accuracy(advanced_linear_results, advanced_knn_results)
-        advanced_knn_accuracy = evaluate_accuracy(advanced_knn_results, faiss_results)
-        faiss_accuracy = evaluate_accuracy(faiss_results, advanced_linear_results)
-
-        results[dataset_name] = {
-            "advanced_linear_search": {
-                "training_time": advanced_linear_training_time,
-                "time": advanced_linear_time,
-                "accuracy": advanced_linear_accuracy
-            },
-            "advanced_knn_search": {
-                "training_time": advanced_knn_training_time,
-                "time": advanced_knn_time,
-                "accuracy": advanced_knn_accuracy
-            },
-            "faiss_search": {
-                "training_time": faiss_search_training_time,
-                "time": faiss_time,
-                "accuracy": faiss_accuracy
-            }
-        }
-
-        print(f"Advanced linear search time: {advanced_linear_time:.4f} s, similarity to Advanced KNN: {advanced_linear_accuracy:.4f}, training/building time: {advanced_linear_training_time:.4f} s")
-        print(f"Advanced KNN search time: {advanced_knn_time:.4f} s, similarity to Faiss: {advanced_knn_accuracy:.4f}, training/building time: {advanced_knn_training_time:.4f} s")
-        print(f"Faiss search time: {faiss_time:.4f} s, similarity to Advanced Linear: {faiss_accuracy:.4f}, training/building time: {faiss_search_training_time:.4f} s")
+        
+        results[dataset_name] = {}
+        for metric in metrics:
+            results[dataset_name][metric] = benchmark_large_dataset(
+                vectors, queries, params["k"], dataset_name, metric
+            )
 
     # Save results
     os.makedirs('benchmarks', exist_ok=True)

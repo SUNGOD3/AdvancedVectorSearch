@@ -11,19 +11,38 @@ namespace py = pybind11;
 
 class BaseAdvancedSearch {
 public:
+    enum class DistanceMetric {
+        COSINE,
+        L2
+    };
+
     virtual ~BaseAdvancedSearch() = default;
     virtual py::array_t<int> search(py::array_t<float> query, int k) = 0;
+    
 protected:
+    float compute_distance(const float* a, const float* b, size_t size) const {
+        switch(m_metric) {
+            case DistanceMetric::L2:
+                return l2_distance(a, b, size);
+            case DistanceMetric::COSINE:
+            default:
+                return cosine_distance(a, b, size);
+        }
+    }
+    
     static float cosine_distance(const float* a, const float* b, size_t size);
+    static float l2_distance(const float* a, const float* b, size_t size);
     static void parallel_sort(std::pair<float, size_t>* distances, int k);
+    
     float* m_data;
     size_t m_num_vectors;
     size_t m_vector_size;
+    DistanceMetric m_metric;
 };
 
 class AdvancedLinearSearch : public BaseAdvancedSearch {
 public:
-    AdvancedLinearSearch(py::array_t<float> vectors);
+    AdvancedLinearSearch(py::array_t<float> vectors, const std::string& metric = "cosine");
     ~AdvancedLinearSearch();
     
     AdvancedLinearSearch(const AdvancedLinearSearch&) = delete;
@@ -92,7 +111,7 @@ private:
                          size_t k) const;
 
 public:
-    AdvancedKNNSearch(py::array_t<float> vectors);
+    AdvancedKNNSearch(py::array_t<float> vectors, const std::string& metric = "cosine");
     ~AdvancedKNNSearch();
     
     AdvancedKNNSearch(const AdvancedKNNSearch&) = delete;
