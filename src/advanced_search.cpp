@@ -28,19 +28,7 @@ float BaseAdvancedSearch::l2_distance(const float* a, const float* b, size_t siz
         sum += diff * diff;
     }
     
-    return std::sqrt(sum);
-}
-
-float BaseAdvancedSearch::l2_distance_fast(const float* a, const float* b, size_t size) {
-    float sum = 0.0f;
-    
-    #pragma omp simd reduction(+:sum)
-    for (size_t i = 0; i < size; ++i) {
-        float diff = a[i] - b[i];
-        sum += diff * diff;
-    }
-    
-    return sum;
+    return sum; // sqrt(sum) is not necessary for ranking
 }
 
 float BaseAdvancedSearch::l2_distance_early_exit(const float* a, const float* b, size_t size, float threshold) {
@@ -98,7 +86,7 @@ AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors, const std
     m_num_vectors = buf.shape[0];
     m_vector_size = buf.shape[1];
     
-    m_metric = (metric == "l2") ? DistanceMetric::L2_FAST : DistanceMetric::COSINE;
+    m_metric = (metric == "l2") ? DistanceMetric::L2 : DistanceMetric::COSINE;
 
     size_t total_size = m_num_vectors * m_vector_size;
     m_data = new float[total_size];
@@ -150,7 +138,7 @@ AdvancedKNNSearch::AdvancedKNNSearch(py::array_t<float> vectors, const std::stri
     
     m_num_vectors = buf.shape[0];
     m_vector_size = buf.shape[1];
-    m_metric = (metric == "l2") ? DistanceMetric::L2_FAST : DistanceMetric::COSINE;
+    m_metric = (metric == "l2") ? DistanceMetric::L2 : DistanceMetric::COSINE;
 
     size_t total_size = m_num_vectors * m_vector_size;
     m_data = new float[total_size];
@@ -309,8 +297,7 @@ void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
             size_t idx = node->points[i];
             const float* point = m_data + idx * m_vector_size;
             
-            // 先檢查是否有機會進入 critical section，避免不必要的鎖競爭
-            float dist = (m_metric == DistanceMetric::L2_FAST) 
+            float dist = (m_metric == DistanceMetric::L2) 
                 ? l2_distance_early_exit(query, point, m_vector_size, worst_dist) 
                 : compute_distance(query, point, m_vector_size);
                 
@@ -402,7 +389,7 @@ py::array_t<int> AdvancedKNNSearch::search(py::array_t<float> query, int k) {
     
     py::array_t<int> result(result_size);
     auto result_ptr = result.mutable_data();
-        for (size_t i = 0; i < result_size; ++i) {
+    for (size_t i = 0; i < result_size; ++i) {
         result_ptr[i] = results[i].second;
     }
     
