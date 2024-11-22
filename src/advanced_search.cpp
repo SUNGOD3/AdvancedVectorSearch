@@ -30,6 +30,18 @@ float BaseAdvancedSearch::l2_distance(const float* a, const float* b, size_t siz
     return std::sqrt(sum);
 }
 
+float BaseAdvancedSearch::l2_distance_fast(const float* a, const float* b, size_t size) {
+    float sum = 0.0f;
+    
+    #pragma omp simd reduction(+:sum)
+    for (size_t i = 0; i < size; ++i) {
+        float diff = a[i] - b[i];
+        sum += diff * diff;
+    }
+    
+    return sum;
+}
+
 void BaseAdvancedSearch::parallel_sort(std::pair<float, size_t>* distances, int k) {
     int num_threads = 4;
     int block_size = (k + num_threads - 1) / num_threads;
@@ -62,7 +74,7 @@ AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors, const std
     m_num_vectors = buf.shape[0];
     m_vector_size = buf.shape[1];
     
-    m_metric = (metric == "l2") ? DistanceMetric::L2 : DistanceMetric::COSINE;
+    m_metric = (metric == "l2") ? DistanceMetric::L2_FAST : DistanceMetric::COSINE;
 
     size_t total_size = m_num_vectors * m_vector_size;
     m_data = new float[total_size];
@@ -114,7 +126,7 @@ AdvancedKNNSearch::AdvancedKNNSearch(py::array_t<float> vectors, const std::stri
     
     m_num_vectors = buf.shape[0];
     m_vector_size = buf.shape[1];
-    m_metric = (metric == "l2") ? DistanceMetric::L2 : DistanceMetric::COSINE;
+    m_metric = (metric == "l2") ? DistanceMetric::L2_FAST : DistanceMetric::COSINE;
 
     size_t total_size = m_num_vectors * m_vector_size;
     m_data = new float[total_size];
