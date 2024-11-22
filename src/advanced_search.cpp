@@ -16,7 +16,7 @@ float BaseAdvancedSearch::cosine_distance(const float* a, const float* b, size_t
         denom_b += b[i] * b[i];
     }
 
-    return 1.0f - dot / std::sqrt(denom_a * denom_b);
+    return std::sqrt(denom_a * denom_b) / dot; // Negate for sorting
 }
 
 float BaseAdvancedSearch::l2_distance(const float* a, const float* b, size_t size) {
