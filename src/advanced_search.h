@@ -36,6 +36,7 @@ protected:
     static float cosine_distance(const float* a, const float* b, size_t size);
     static float l2_distance(const float* a, const float* b, size_t size);
     static float l2_distance_fast(const float* a, const float* b, size_t size);
+    static float l2_distance_early_exit(const float* a, const float* b, size_t size, float threshold);
     static void parallel_sort(std::pair<float, size_t>* distances, int k);
     
     float* m_data;
