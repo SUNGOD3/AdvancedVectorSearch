@@ -5,6 +5,7 @@
 #include <cstring>
 #include <queue>
 #include <iostream>
+#include <numeric>
 
 float BaseAdvancedSearch::cosine_distance(const float* a, const float* b, size_t size) {
     float dot = 0.0, denom_a = 0.0, denom_b = 0.0;
@@ -146,9 +147,7 @@ AdvancedKNNSearch::AdvancedKNNSearch(py::array_t<float> vectors, const std::stri
 
     // Initialize indices array
     size_t* indices = new size_t[m_num_vectors];
-    for (size_t i = 0; i < m_num_vectors; ++i) {
-        indices[i] = i;
-    }
+    std::iota(indices, indices + m_num_vectors, 0); // Fill with 0, 1, 2 ...
     
     build_tree(root, indices, m_num_vectors);
     delete[] indices;

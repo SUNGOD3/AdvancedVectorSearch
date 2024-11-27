@@ -10,17 +10,7 @@ class DistanceMetric(Enum):
     COSINE = "cosine"
     L2 = "l2"
 
-class AdvancedSearchBase:
-    def __init__(self, metric=DistanceMetric.COSINE):
-        self.metric = metric
-    
-    def search(self, query, k):
-        """
-        Base search method to be implemented by subclasses
-        """
-        raise NotImplementedError
-
-class AdvancedLinearSearch(AdvancedSearchBase):
+class AdvancedLinearSearch():
     def __init__(self, vectors, metric="cosine"):
         """
         Initialize the AdvancedLinearSearch instance.
@@ -41,7 +31,7 @@ class AdvancedLinearSearch(AdvancedSearchBase):
         query = np.asarray(query, dtype=np.float32)
         return self.cpp_search.search(query, k).tolist()
 
-class AdvancedKNNSearch(AdvancedSearchBase):
+class AdvancedKNNSearch():
     def __init__(self, vectors, metric="cosine"):
         """
         Initialize the AdvancedKNNSearch instance.
