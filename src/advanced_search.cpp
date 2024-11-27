@@ -33,7 +33,7 @@ float BaseAdvancedSearch::l2_distance(const float* a, const float* b, size_t siz
 
 float BaseAdvancedSearch::l2_distance_early_exit(const float* a, const float* b, size_t size, float threshold) {
     float sum = 0.0f;
-    constexpr size_t BATCH_SIZE = 256; 
+    const size_t BATCH_SIZE = (size >> 3);
     
     for (size_t i = 0; i < size; i += BATCH_SIZE) {
         float batch_sum = 0.0f;
