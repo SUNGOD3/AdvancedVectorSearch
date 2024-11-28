@@ -7,6 +7,17 @@
 #include <iostream>
 #include <numeric>
 
+float BaseAdvancedSearch::inner_product_distance(const float* a, const float* b, size_t size) {
+    float dot = 0.0;
+    
+    #pragma omp simd reduction(+:dot)
+    for (size_t i = 0; i < size; ++i) {
+        dot += a[i] * b[i];
+    }
+    
+    return -dot; // Negate for sorting (want highest dot product first)
+}
+
 float BaseAdvancedSearch::cosine_distance(const float* a, const float* b, size_t size) {
     float dot = 0.0, denom_a = 0.0, denom_b = 0.0;
     

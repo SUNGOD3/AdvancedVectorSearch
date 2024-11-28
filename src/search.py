@@ -9,6 +9,7 @@ from enum import Enum
 class DistanceMetric(Enum):
     COSINE = "cosine"
     L2 = "l2"
+    INNER_PRODUCT = "inner_product"
 
 class AdvancedLinearSearch():
     def __init__(self, vectors, metric="cosine"):
@@ -65,7 +66,7 @@ class LinearSearch:
         self.metric = metric
         
         # Normalize vectors if using cosine similarity
-        if self.metric == "cosine":
+        if self.metric in ["cosine", "inner_product"]:
             norms = np.linalg.norm(self.vectors, axis=1, keepdims=True)
             self.vectors = self.vectors / norms
     
@@ -75,6 +76,11 @@ class LinearSearch:
             query = query / np.linalg.norm(query)
             # Compute cosine distances
             distances = np.array([cosine(query, v) for v in self.vectors])
+        elif self.metric == "inner_product":
+            # Normalize query for inner product
+            query = query / np.linalg.norm(query)
+            # Compute negative inner product (for consistent sorting)
+            distances = np.array([-np.dot(query, v) for v in self.vectors])
         else:  # L2
             # Compute L2 distances
             distances = np.array([euclidean(query, v) for v in self.vectors])
@@ -120,6 +126,10 @@ class FaissSearch:
             # For cosine similarity, normalize vectors and use IndexFlatIP
             faiss.normalize_L2(self.vectors)
             self.index = faiss.IndexFlatIP(self.dimension)
+        elif self.metric == "inner_product":
+            # For inner product, normalize vectors and use IndexFlatIP
+            faiss.normalize_L2(self.vectors)
+            self.index = faiss.IndexFlatIP(self.dimension)
         else:  # L2
             # For L2 distance, use IndexFlatL2
             self.index = faiss.IndexFlatL2(self.dimension)
@@ -136,7 +146,7 @@ class FaissSearch:
         """
         query = np.array(query).reshape(1, -1).astype('float32')
         
-        if self.metric == "cosine":
+        if self.metric in ["cosine", "inner_product"]:
             faiss.normalize_L2(query)
             
         distances, indices = self.index.search(query, k)
@@ -152,7 +162,7 @@ class FaissSearch:
             vectors = np.array(vectors)
         vectors = vectors.astype('float32')
         
-        if self.metric == "cosine":
+        if self.metric in ["cosine", "inner_product"]:
             faiss.normalize_L2(vectors)
             
         self.index.add(vectors)
