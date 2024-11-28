@@ -1,5 +1,4 @@
 # benchmarks/run_benchmarks.py
-
 import time
 import json
 import numpy as np
@@ -33,7 +32,7 @@ def run_benchmark(search_method, vectors, queries, k):
     end_time = time.time()
     return results, end_time - start_time
 
-def benchmark_dataset(vectors, queries, k, dataset_name, metric):
+def benchmark_dataset(vectors, queries, k, dataset_name, metric, dimension):
     """
     Run benchmark for a specific dataset and metric.
     
@@ -42,9 +41,10 @@ def benchmark_dataset(vectors, queries, k, dataset_name, metric):
     :param k: Number of nearest neighbors
     :param dataset_name: Name of the dataset
     :param metric: Distance metric to use
+    :param dimension: Dimensionality of vectors
     :return: Dictionary containing benchmark results
     """
-    print(f"\nRunning benchmark for {dataset_name} dataset with {metric} metric:")
+    print(f"\nRunning benchmark for {dataset_name} dataset with {metric} metric and dimension {dimension}:")
     print(f"Vectors: {len(vectors)}, Queries: {len(queries)}, k={k}")
 
     # Initialize all search methods
@@ -103,7 +103,7 @@ def benchmark_dataset(vectors, queries, k, dataset_name, metric):
         }
     }
 
-def benchmark_large_dataset(vectors, queries, k, dataset_name, metric):
+def benchmark_large_dataset(vectors, queries, k, dataset_name, metric, dimension):
     """
     Run benchmark for a large dataset and specific metric.
     
@@ -112,9 +112,10 @@ def benchmark_large_dataset(vectors, queries, k, dataset_name, metric):
     :param k: Number of nearest neighbors
     :param dataset_name: Name of the dataset
     :param metric: Distance metric to use
+    :param dimension: Dimensionality of vectors
     :return: Dictionary containing benchmark results
     """
-    print(f"\nRunning benchmark for {dataset_name} dataset with {metric} metric:")
+    print(f"\nRunning benchmark for {dataset_name} dataset with {metric} metric and dimension {dimension}:")
     print(f"Vectors: {len(vectors)}, Queries: {len(queries)}, k={k}")
 
     # Initialize optimized search methods
@@ -164,7 +165,8 @@ def benchmark_large_dataset(vectors, queries, k, dataset_name, metric):
 
 def main():
     np.random.seed(42)
-    dimensions = 1024
+    # Add different dimensions to test
+    dimensions = [512, 1024]
     metrics = ["cosine", "l2", "inner_product"]
 
     datasets = {
@@ -182,27 +184,31 @@ def main():
 
     results = {}
 
-    # Benchmark regular datasets
-    for dataset_name, params in datasets.items():
-        vectors = generate_random_vectors(params["num_vectors"], dimensions)
-        queries = generate_random_vectors(params["num_queries"], dimensions)
-        
-        results[dataset_name] = {}
-        for metric in metrics:
-            results[dataset_name][metric] = benchmark_dataset(
-                vectors, queries, params["k"], dataset_name, metric
-            )
+    # Benchmark regular datasets with different dimensions
+    for dimension in dimensions:
+        results[f"dim_{dimension}"] = {}
+        for dataset_name, params in datasets.items():
+            vectors = generate_random_vectors(params["num_vectors"], dimension)
+            queries = generate_random_vectors(params["num_queries"], dimension)
+            
+            results[f"dim_{dimension}"][dataset_name] = {}
+            for metric in metrics:
+                results[f"dim_{dimension}"][dataset_name][metric] = benchmark_dataset(
+                    vectors, queries, params["k"], dataset_name, metric, dimension
+                )
 
-    # Benchmark large datasets
-    for dataset_name, params in large_datasets.items():
-        vectors = generate_random_vectors(params["num_vectors"], dimensions)
-        queries = generate_random_vectors(params["num_queries"], dimensions)
-        
-        results[dataset_name] = {}
-        for metric in metrics:
-            results[dataset_name][metric] = benchmark_large_dataset(
-                vectors, queries, params["k"], dataset_name, metric
-            )
+    # Benchmark large datasets with different dimensions
+    for dimension in dimensions:
+        results[f"large_dim_{dimension}"] = {}
+        for dataset_name, params in large_datasets.items():
+            vectors = generate_random_vectors(params["num_vectors"], dimension)
+            queries = generate_random_vectors(params["num_queries"], dimension)
+            
+            results[f"large_dim_{dimension}"][dataset_name] = {}
+            for metric in metrics:
+                results[f"large_dim_{dimension}"][dataset_name][metric] = benchmark_large_dataset(
+                    vectors, queries, params["k"], dataset_name, metric, dimension
+                )
 
     # Save results
     os.makedirs('benchmarks', exist_ok=True)
