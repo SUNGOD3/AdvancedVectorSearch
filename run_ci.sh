@@ -32,5 +32,6 @@ python -m unittest discover tests
 # 運行基準測試
 echo "Running benchmarks..."
 python benchmarks/run_benchmarks.py
+python benchmarks/plot.py
 
 echo "All tasks completed successfully."

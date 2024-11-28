@@ -6,3 +6,5 @@ data/
 *.fvecs
 *.ivecs
 best.txt
+performance_comparison.png
+performance_summary.csv
