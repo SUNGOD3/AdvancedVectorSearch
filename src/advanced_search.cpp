@@ -98,12 +98,36 @@ AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors, const std
     m_num_vectors = buf.shape[0];
     m_vector_size = buf.shape[1];
     
-    m_metric = (metric == "l2") ? DistanceMetric::L2 : DistanceMetric::COSINE;
+    if (metric == "l2") {
+        m_metric = DistanceMetric::L2;
+    } else if (metric == "inner_product") {
+        m_metric = DistanceMetric::INNER_PRODUCT;
+    } else if (metric == "cosine") {
+        m_metric = DistanceMetric::COSINE;
+    } else {
+        throw std::runtime_error("Invalid distance metric");
+    }
 
     size_t total_size = m_num_vectors * m_vector_size;
     m_data = new float[total_size];
     
     std::memcpy(m_data, buf.ptr, sizeof(float) * total_size);
+
+    // Normalize vectors for inner product and cosine distance
+    if (m_metric == DistanceMetric::INNER_PRODUCT || m_metric == DistanceMetric::COSINE) {
+        #pragma omp parallel for
+        for (size_t i = 0; i < m_num_vectors; ++i) {
+            float norm = 0.0f;
+            for (size_t j = 0; j < m_vector_size; ++j) {
+                norm += m_data[i * m_vector_size + j] * m_data[i * m_vector_size + j];
+            }
+            norm = std::sqrt(norm);
+            for (size_t j = 0; j < m_vector_size; ++j) {
+                m_data[i * m_vector_size + j] /= norm;
+            }
+        }
+    }
+
 }
 
 AdvancedLinearSearch::~AdvancedLinearSearch() {
@@ -150,11 +174,35 @@ AdvancedKNNSearch::AdvancedKNNSearch(py::array_t<float> vectors, const std::stri
     
     m_num_vectors = buf.shape[0];
     m_vector_size = buf.shape[1];
-    m_metric = (metric == "l2") ? DistanceMetric::L2 : DistanceMetric::COSINE;
+    if (metric == "l2") {
+        m_metric = DistanceMetric::L2;
+    } else if (metric == "inner_product") {
+        m_metric = DistanceMetric::INNER_PRODUCT;
+    } else if (metric == "cosine") {
+        m_metric = DistanceMetric::COSINE;
+    } else {
+        throw std::runtime_error("Invalid distance metric");
+    }
+
 
     size_t total_size = m_num_vectors * m_vector_size;
     m_data = new float[total_size];
     std::memcpy(m_data, buf.ptr, sizeof(float) * total_size);
+
+    // Normalize vectors for inner product and cosine distance
+    if (m_metric == DistanceMetric::INNER_PRODUCT || m_metric == DistanceMetric::COSINE) {
+        #pragma omp parallel for
+        for (size_t i = 0; i < m_num_vectors; ++i) {
+            float norm = 0.0f;
+            for (size_t j = 0; j < m_vector_size; ++j) {
+                norm += m_data[i * m_vector_size + j] * m_data[i * m_vector_size + j];
+            }
+            norm = std::sqrt(norm);
+            for (size_t j = 0; j < m_vector_size; ++j) {
+                m_data[i * m_vector_size + j] /= norm;
+            }
+        }
+    }
 
     // Initialize indices array
     size_t* indices = new size_t[m_num_vectors];
