@@ -171,12 +171,10 @@ def main():
 
     datasets = {
         "small": {"num_vectors": 100, "num_queries": 10, "k": 10},
-        "medium": {"num_vectors": 1000, "num_queries": 100, "k": 20},
         "large": {"num_vectors": 10000, "num_queries": 100, "k": 30},
     }
 
     large_datasets = {
-        "extra_large": {"num_vectors": 50000, "num_queries": 200, "k": 50},
         "huge": {"num_vectors": 100000, "num_queries": 200, "k": 50},
         "huge_query": {"num_vectors": 100000, "num_queries": 200, "k": 10000},
         "huge_full_query": {"num_vectors": 100000, "num_queries": 200, "k": 100000},
