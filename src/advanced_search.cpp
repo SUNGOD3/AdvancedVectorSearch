@@ -225,23 +225,6 @@ float AdvancedKNNSearch::compute_radius(const size_t* indices, size_t num_indice
     return max_dist;
 }
 
-size_t AdvancedKNNSearch::find_furthest_point(const size_t* indices, size_t num_indices, size_t center_idx) {
-    float max_dist = -1.0f;
-    size_t furthest_idx = center_idx;
-    const float* center = m_data + center_idx * m_vector_size;
-    
-    for (size_t i = 0; i < num_indices; ++i) {
-        if (indices[i] == center_idx) continue;
-        const float* point = m_data + indices[i] * m_vector_size;
-        float dist = compute_distance(center, point, m_vector_size);
-        if (dist > max_dist) {
-            max_dist = dist;
-            furthest_idx = indices[i];
-        }
-    }
-    return furthest_idx;
-}
-
 void AdvancedKNNSearch::build_tree(std::unique_ptr<BallNode>& node, size_t* indices, size_t num_indices) {
     if (num_indices == 0) return;
     node = std::make_unique<BallNode>();
