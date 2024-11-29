@@ -1,11 +1,14 @@
 // src/advanced_search.h
 #pragma once
-#include <vector>
-#include <memory>
-#include <queue>
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <algorithm>
+#include <cstring>
+#include <memory>
+#include <numeric>
 #include <omp.h>
+#include <queue>
+#include <vector>
 
 namespace py = pybind11;
 

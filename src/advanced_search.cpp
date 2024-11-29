@@ -1,11 +1,5 @@
 // src/advanced_search.cpp
 #include "advanced_search.h"
-#include <algorithm>
-#include <cmath>
-#include <cstring>
-#include <queue>
-#include <iostream>
-#include <numeric>
 
 float BaseAdvancedSearch::inner_product_distance(const float* a, const float* b, size_t size) {
     float dot = 0.0;
