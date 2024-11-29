@@ -88,6 +88,20 @@ void BaseAdvancedSearch::parallel_sort(std::pair<float, size_t>* distances, int 
     }
 }
 
+void BaseAdvancedSearch::normalize(float* data, size_t num_vectors, size_t vector_size) {
+    #pragma omp parallel for
+    for (size_t i = 0; i < num_vectors; ++i) {
+        float norm = 0.0f;
+        for (size_t j = 0; j < vector_size; ++j) {
+            norm += data[i * vector_size + j] * data[i * vector_size + j];
+        }
+        norm = std::sqrt(norm);
+        for (size_t j = 0; j < vector_size; ++j) {
+            data[i * vector_size + j] /= norm;
+        }
+    }
+}
+
 // Advanced Linear Search Implementation
 AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors, const std::string& metric) {
     py::buffer_info buf = vectors.request();
@@ -115,17 +129,7 @@ AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors, const std
 
     // Normalize vectors for inner product and cosine distance
     if (m_metric == DistanceMetric::INNER_PRODUCT || m_metric == DistanceMetric::COSINE) {
-        #pragma omp parallel for
-        for (size_t i = 0; i < m_num_vectors; ++i) {
-            float norm = 0.0f;
-            for (size_t j = 0; j < m_vector_size; ++j) {
-                norm += m_data[i * m_vector_size + j] * m_data[i * m_vector_size + j];
-            }
-            norm = std::sqrt(norm);
-            for (size_t j = 0; j < m_vector_size; ++j) {
-                m_data[i * m_vector_size + j] /= norm;
-            }
-        }
+        normalize(m_data, m_num_vectors, m_vector_size);
     }
 
 }
@@ -191,17 +195,7 @@ AdvancedKNNSearch::AdvancedKNNSearch(py::array_t<float> vectors, const std::stri
 
     // Normalize vectors for inner product and cosine distance
     if (m_metric == DistanceMetric::INNER_PRODUCT || m_metric == DistanceMetric::COSINE) {
-        #pragma omp parallel for
-        for (size_t i = 0; i < m_num_vectors; ++i) {
-            float norm = 0.0f;
-            for (size_t j = 0; j < m_vector_size; ++j) {
-                norm += m_data[i * m_vector_size + j] * m_data[i * m_vector_size + j];
-            }
-            norm = std::sqrt(norm);
-            for (size_t j = 0; j < m_vector_size; ++j) {
-                m_data[i * m_vector_size + j] /= norm;
-            }
-        }
+        normalize(m_data, m_num_vectors, m_vector_size);
     }
 
     // Initialize indices array

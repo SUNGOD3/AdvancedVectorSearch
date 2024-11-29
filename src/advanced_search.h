@@ -21,6 +21,7 @@ public:
     virtual py::array_t<int> search(py::array_t<float> query, int k) = 0;
     
 protected:
+    void normalize(float* data, size_t num_vectors, size_t vector_size);
     float compute_distance(const float* a, const float* b, size_t size) const {
         switch(m_metric) {
             case DistanceMetric::L2:
