@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from src.search import LinearSearch, FaissSearch, AdvancedLinearSearch, AdvancedKNNSearch
+from src.search import LinearSearch, FaissSearch, AdvancedLinearSearch, AdvancedKNNSearch, AdvancedHNSWSearch
 from src.data_generator import generate_random_vectors
 
 class TestSearch(unittest.TestCase):
