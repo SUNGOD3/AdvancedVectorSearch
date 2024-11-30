@@ -3,7 +3,6 @@ import numpy as np
 from scipy.spatial.distance import cosine, euclidean
 from advanced_search_cpp import AdvancedLinearSearch as CppAdvancedLinearSearch
 from advanced_search_cpp import AdvancedKNNSearch as CppAdvancedKNNSearch
-import hnswlib
 import faiss
 from enum import Enum
 
@@ -56,14 +55,15 @@ class AdvancedKNNSearch():
 
 
 class AdvancedHNSWSearch:
-    def __init__(self, vectors, metric="cosine", ef_construction=150, M=16):
+    def __init__(self, vectors, metric="cosine", ef_construction=250, M=64, ef_search=None):
         """
-        Initialize the AdvancedHNSWSearch instance using HNSW algorithm.
+        Initialize the AdvancedHNSWSearch instance using Faiss HNSW algorithm.
         
         :param vectors: A 2D numpy array of vectors to search through
         :param metric: Distance metric to use ("cosine" or "l2")
         :param ef_construction: Depth of layer construction (higher = more accurate but slower)
         :param M: Maximum number of connections per element (higher = more accurate but slower)
+        :param ef_search: Effective search parameter (if None, will be dynamically set)
         """
         # Ensure input is a numpy array
         vectors = np.asarray(vectors, dtype=np.float32)
@@ -71,58 +71,61 @@ class AdvancedHNSWSearch:
         # Get vector dimension
         dim = vectors.shape[1]
         
-        # Normalize vectors if using cosine similarity or inner product
-        if metric in ["cosine", "inner_product"]:
-            norms = np.linalg.norm(vectors, axis=1, keepdims=True)
-            vectors = np.divide(vectors, norms, out=np.zeros_like(vectors), where=norms!=0)
-        
-        # Create HNSW index with more careful configuration
-        if metric == 'l2':
-            space = 'l2'
-        elif metric in ['cosine', 'inner_product']:
-            space = 'ip'  # inner product for both cosine and inner_product
+        # Create index configuration based on metric
+        if metric == "cosine":
+            # For cosine, normalize vectors and use inner product
+            faiss.normalize_L2(vectors)
+            index = faiss.IndexHNSWFlat(dim, M, faiss.METRIC_INNER_PRODUCT)
+        elif metric == "l2":
+            # For L2 distance
+            index = faiss.IndexHNSWFlat(dim, M, faiss.METRIC_L2)
+        elif metric == "inner_product":
+            # Normalize vectors for inner product
+            faiss.normalize_L2(vectors)
+            index = faiss.IndexHNSWFlat(dim, M, faiss.METRIC_INNER_PRODUCT)
         else:
             raise ValueError(f"Unsupported metric: {metric}")
         
-        # Create index with optimized parameters
-        self.index = hnswlib.Index(space=space, dim=dim)
+        # Configure index construction parameters
+        index.hnsw.efConstruction = ef_construction
         
-        # More aggressive index construction parameters
-        self.index.init_index(max_elements=vectors.shape[0], 
-                               ef_construction=ef_construction,  # Increased from 200 to 400
-                               M=M)  # Increased from 16 to 64
+        # Set ef search parameter dynamically if not provided
+        if ef_search is None:
+            # More aggressive ef_search based on dataset size and k
+            # The goal is to balance performance and accuracy
+            ef_search = max(50, min(300, vectors.shape[0] // 10))
         
-        # Add all vectors to the index
-        self.index.add_items(vectors)
+        # Set the search ef after index is created
+        index.hnsw.efSearch = ef_search
         
-        # Optimize search parameters
-        # Significantly increase ef parameter for more thorough search
-        self.index.set_ef(max(50, vectors.shape[0] // 10))  # Dynamic ef based on dataset size
+        # Add vectors to the index
+        index.add(vectors)
         
-        # Store metric for potential future use
+        # Store index and metric
+        self.index = index
         self.metric = metric
+        self.dimension = dim
 
     def search(self, query, k):
         """
-        Perform HNSW search using hnswlib with improved accuracy.
+        Perform HNSW search using Faiss with improved accuracy.
         
         :param query: Query vector
         :param k: Number of nearest neighbors to return
         :return: List of indices of the most similar vectors
         """
         # Ensure query is a numpy array with float32 type
-        query = np.asarray(query, dtype=np.float32)
+        query = np.asarray(query, dtype=np.float32).reshape(1, -1)
         
         # Normalize query if using cosine or inner product
         if self.metric in ["cosine", "inner_product"]:
-            norm = np.linalg.norm(query)
-            query = query / norm if norm != 0 else query
+            faiss.normalize_L2(query)
 
         # Perform the search
-        labels, _ = self.index.knn_query(query, k=k)
+        _, indices = self.index.search(query, k)
         
         # Return the list of indices
-        return labels[0].tolist()
+        return indices[0].tolist()
 
     def add(self, vector):
         """
@@ -135,11 +138,10 @@ class AdvancedHNSWSearch:
         
         # Normalize if using cosine or inner product
         if self.metric in ["cosine", "inner_product"]:
-            norm = np.linalg.norm(vector)
-            vector = vector / norm if norm != 0 else vector
+            faiss.normalize_L2(vector)
         
         # Add the vector to the index
-        self.index.add_items(vector)
+        self.index.add(vector)
 
 
 class LinearSearch:
