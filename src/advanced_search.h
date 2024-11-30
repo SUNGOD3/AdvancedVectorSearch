@@ -39,11 +39,13 @@ protected:
     
     static float inner_product_distance(const float* a, const float* b, size_t size);
     static float cosine_distance(const float* a, const float* b, size_t size);
+    static float cosine_distance(const float* a, const float* b, size_t size, float norm_a, float norm_b);
     static float l2_distance(const float* a, const float* b, size_t size);
     static float l2_distance_early_exit(const float* a, const float* b, size_t size, float threshold);
     static void parallel_sort(std::pair<float, size_t>* distances, int k);
     
     float* m_data;
+    float* m_norms;
     size_t m_num_vectors;
     size_t m_vector_size;
     DistanceMetric m_metric;

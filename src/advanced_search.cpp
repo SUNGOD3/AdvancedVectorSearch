@@ -25,6 +25,18 @@ float BaseAdvancedSearch::cosine_distance(const float* a, const float* b, size_t
     return denom_a * denom_b / (dot * dot); // Negate for sorting
 }
 
+float BaseAdvancedSearch::cosine_distance(const float* a, const float* b, size_t size, float norm_a, float norm_b) {
+    float dot = 0.0;
+    
+    #pragma omp simd reduction(+:dot)
+    for (size_t i = 0; i < size; ++i) {
+        dot += a[i] * b[i];
+    }
+
+    return norm_a * norm_b / (dot * dot); // Precomputed norms optimization
+}
+
+
 float BaseAdvancedSearch::l2_distance(const float* a, const float* b, size_t size) {
     float sum = 0.0f;
     
@@ -126,6 +138,25 @@ AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors, const std
         normalize(m_data, m_num_vectors, m_vector_size);
     }
 
+    if (m_metric == DistanceMetric::COSINE) {
+        m_norms = new float[m_num_vectors];
+        
+        #pragma omp parallel for
+        for (size_t i = 0; i < m_num_vectors; ++i) {
+            float norm = 0.0f;
+            const float* vec = m_data + i * m_vector_size;
+            
+            #pragma omp simd reduction(+:norm)
+            for (size_t j = 0; j < m_vector_size; ++j) {
+                norm += vec[j] * vec[j];
+            }
+            
+            m_norms[i] = norm;
+        }
+    } else {
+        m_norms = nullptr;
+    }
+
 }
 
 AdvancedLinearSearch::~AdvancedLinearSearch() {
@@ -144,9 +175,24 @@ py::array_t<int> AdvancedLinearSearch::search(py::array_t<float> query, int k) {
     const float* query_ptr = static_cast<float*>(buf.ptr);
     std::pair<float, size_t>* distances = new std::pair<float, size_t>[m_num_vectors];
 
-    #pragma omp parallel for
-    for (size_t i = 0; i < m_num_vectors; ++i) {
-        distances[i] = {compute_distance(query_ptr, m_data + i * m_vector_size, m_vector_size), i};
+    // Compute query norm if using cosine distance
+    
+    if (m_metric == DistanceMetric::COSINE) {
+        float query_norm = 0.0f;
+        #pragma omp simd reduction(+:query_norm)
+        for (size_t j = 0; j < m_vector_size; ++j) {
+            query_norm += query_ptr[j] * query_ptr[j];
+        }
+        #pragma omp parallel for
+        for (size_t i = 0; i < m_num_vectors; ++i) {
+            distances[i] = {cosine_distance(query_ptr, m_data + i * m_vector_size, m_vector_size, query_norm, m_norms[i]), i};
+        }
+    }
+    else{
+        #pragma omp parallel for
+        for (size_t i = 0; i < m_num_vectors; ++i) {
+            distances[i] = {compute_distance(query_ptr, m_data + i * m_vector_size, m_vector_size), i};
+        }
     }
 
     k = std::min(k, static_cast<int>(m_num_vectors));
