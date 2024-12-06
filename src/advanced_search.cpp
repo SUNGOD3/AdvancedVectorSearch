@@ -376,21 +376,19 @@ void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
                 ? l2_distance_early_exit(query, point, m_vector_size, worst_dist) 
                 : compute_distance(query, point, m_vector_size);
                 
-            if (result_size < k || dist < worst_dist) {
-                #pragma omp critical
-                {
-                    if (result_size < k) {
-                        results[result_size++] = {dist, idx};
-                        if (result_size == k) {
-                            std::make_heap(results, results + k);
-                            worst_dist = results[0].first;
-                        }
-                    } else if (dist < worst_dist) {
-                        std::pop_heap(results, results + k);
-                        results[k-1] = {dist, idx};
-                        std::push_heap(results, results + k);
+            #pragma omp critical
+            {
+                if (result_size < k) {
+                    results[result_size++] = {dist, idx};
+                    if (result_size == k) {
+                        std::make_heap(results, results + k);
                         worst_dist = results[0].first;
                     }
+                } else if (dist < worst_dist) {
+                    std::pop_heap(results, results + k);
+                    results[k-1] = {dist, idx};
+                    std::push_heap(results, results + k);
+                    worst_dist = results[0].first;
                 }
             }
         }
@@ -398,24 +396,26 @@ void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
     }
     
     // For internal nodes, recursively search children
-    if (node->left && node->right) {
+    /*if (node->left && node->right) {
         // Calculate distances to both children's centers
-        //const float* left_center = m_data + node->left->center_idx * m_vector_size;
-        //const float* right_center = m_data + node->right->center_idx * m_vector_size;
+        const float* left_center = m_data + node->left->center_idx * m_vector_size;
+        const float* right_center = m_data + node->right->center_idx * m_vector_size;
         
-        //float dist_to_left = compute_distance(left_center, query, m_vector_size);
-        //float dist_to_right = compute_distance(right_center, query, m_vector_size);
+        float dist_to_left = compute_distance(left_center, query, m_vector_size);
+        float dist_to_right = compute_distance(right_center, query, m_vector_size);
 
         // Visit closer node first for better pruning        
-        //if (dist_to_left < dist_to_right) {
+        if (dist_to_left < dist_to_right) {
             search_ball_tree(node->left.get(), query, results, result_size, worst_dist, k);
             search_ball_tree(node->right.get(), query, results, result_size, worst_dist, k);
-        //} else {
-        //    search_ball_tree(node->right.get(), query, results, result_size, worst_dist, k);
-        //    search_ball_tree(node->left.get(), query, results, result_size, worst_dist, k);
-        //}
+        } else {
+            search_ball_tree(node->right.get(), query, results, result_size, worst_dist, k);
+            search_ball_tree(node->left.get(), query, results, result_size, worst_dist, k);
+        }
     } else if (node->left) search_ball_tree(node->left.get(), query, results, result_size, worst_dist, k);
-    else search_ball_tree(node->right.get(), query, results, result_size, worst_dist, k);
+    else search_ball_tree(node->right.get(), query, results, result_size, worst_dist, k); */
+    if (node->left) search_ball_tree(node->left.get(), query, results, result_size, worst_dist, k);
+    if (node->right) search_ball_tree(node->right.get(), query, results, result_size, worst_dist, k);
 }
 
 py::array_t<int> AdvancedKNNSearch::search(py::array_t<float> query, int k) {
