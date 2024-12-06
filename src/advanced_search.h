@@ -26,15 +26,7 @@ public:
 protected:
     void normalize(float* data, size_t num_vectors, size_t vector_size);
     float compute_distance(const float* a, const float* b, size_t size) const {
-        switch(m_metric) {
-            case DistanceMetric::L2:
-                return l2_distance(a, b, size);
-            case DistanceMetric::INNER_PRODUCT:
-                return inner_product_distance(a, b, size);
-            case DistanceMetric::COSINE:
-            default:
-                return cosine_distance(a, b, size);
-        }
+        return get_distance_function(m_metric)(a, b, size);
     }
     
     static float inner_product_distance(const float* a, const float* b, size_t size);
@@ -49,6 +41,19 @@ protected:
     size_t m_num_vectors;
     size_t m_vector_size;
     DistanceMetric m_metric;
+    typedef float (*DistanceFunction)(const float*, const float*, size_t);
+    
+    static DistanceFunction get_distance_function(DistanceMetric metric) {
+        switch(metric) {
+            case DistanceMetric::L2:
+                return l2_distance;
+            case DistanceMetric::INNER_PRODUCT:
+                return inner_product_distance;
+            case DistanceMetric::COSINE:
+            default:
+                return cosine_distance;
+        }
+    }
 };
 
 class AdvancedLinearSearch : public BaseAdvancedSearch {
