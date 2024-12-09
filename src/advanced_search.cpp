@@ -85,9 +85,9 @@ void BaseAdvancedSearch::parallel_sort(std::pair<float, size_t>* distances, int 
     for (int merge_size = block_size; merge_size < k; merge_size *= 2) {
         #pragma omp parallel for schedule(dynamic)
         for (int i = 0; i < k; i += 2 * merge_size) {
-            int mid = std::min(i + merge_size, k);
+            int mid = i + merge_size;
             int end = std::min(i + 2 * merge_size, k);
-            if (end > mid) {
+            if (mid < end) {
                 std::inplace_merge(distances + i, distances + mid, distances + end);
             }
         }
