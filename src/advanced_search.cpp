@@ -12,19 +12,6 @@ float BaseAdvancedSearch::inner_product_distance(const float* a, const float* b,
     return -dot; // Negate for sorting (want highest dot product first)
 }
 
-float BaseAdvancedSearch::cosine_distance(const float* a, const float* b, size_t size) {
-    float dot = 0.0, denom_a = 0.0, denom_b = 0.0;
-    
-    #pragma omp simd reduction(+:dot,denom_a,denom_b)
-    for (size_t i = 0; i < size; ++i) {
-        dot += a[i] * b[i];
-        denom_a += a[i] * a[i];
-        denom_b += b[i] * b[i];
-    }
-
-    return denom_a * denom_b / (dot * dot); // Negate for sorting
-}
-
 float BaseAdvancedSearch::cosine_distance(const float* a, const float* b, size_t size, float norm_a, float norm_b) {
     float dot = 0.0;
     
@@ -83,7 +70,7 @@ void BaseAdvancedSearch::parallel_sort(std::pair<float, size_t>* distances, int 
     }
     
     for (int merge_size = block_size; merge_size < k; merge_size *= 2) {
-        #pragma omp parallel for schedule(dynamic)
+        #pragma omp parallel for schedule(static)
         for (int i = 2 * merge_size; i < k; i += 2 * merge_size) {
             std::inplace_merge(distances + i - 2 * merge_size, distances + (i - merge_size), distances + i);
         }
@@ -106,14 +93,6 @@ void BaseAdvancedSearch::normalize(float* data, size_t num_vectors, size_t vecto
 
 // Advanced Linear Search Implementation
 AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors, const std::string& metric) {
-    py::buffer_info buf = vectors.request();
-    if (buf.ndim != 2) {
-        throw std::runtime_error("Number of dimensions must be 2");
-    }
-    
-    m_num_vectors = buf.shape[0];
-    m_vector_size = buf.shape[1];
-    
     if (metric == "l2") {
         m_metric = DistanceMetric::L2;
     } else if (metric == "inner_product") {
@@ -123,6 +102,13 @@ AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors, const std
     } else {
         throw std::runtime_error("Invalid distance metric");
     }
+    py::buffer_info buf = vectors.request();
+    if (buf.ndim != 2) {
+        throw std::runtime_error("Number of dimensions must be 2");
+    }
+    
+    m_num_vectors = buf.shape[0];
+    m_vector_size = buf.shape[1];
 
     size_t total_size = m_num_vectors * m_vector_size;
     m_data = new float[total_size];
@@ -136,7 +122,7 @@ AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors, const std
 
     if (m_metric == DistanceMetric::COSINE) {
         m_norms = new float[m_num_vectors];
-        
+
         #pragma omp parallel for
         for (size_t i = 0; i < m_num_vectors; ++i) {
             float norm = 0.0f;
@@ -149,9 +135,7 @@ AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors, const std
             
             m_norms[i] = norm;
         }
-    } else {
-        m_norms = nullptr;
-    }
+    }// else m_norms = nullptr;
 
 }
 
@@ -184,10 +168,16 @@ py::array_t<int> AdvancedLinearSearch::search(py::array_t<float> query, int k) {
             distances[i] = {cosine_distance(query_ptr, m_data + i * m_vector_size, m_vector_size, query_norm, m_norms[i]), i};
         }
     }
-    else{
+    else if(m_metric == DistanceMetric::L2) {
         #pragma omp parallel for
         for (size_t i = 0; i < m_num_vectors; ++i) {
-            distances[i] = {compute_distance(query_ptr, m_data + i * m_vector_size, m_vector_size), i};
+            distances[i] = {l2_distance(query_ptr, m_data + i * m_vector_size, m_vector_size), i};
+        }
+    }
+    else{ // Inner Product
+        #pragma omp parallel for
+        for (size_t i = 0; i < m_num_vectors; ++i) {
+            distances[i] = {inner_product_distance(query_ptr, m_data + i * m_vector_size, m_vector_size), i};
         }
     }
 
@@ -196,10 +186,13 @@ py::array_t<int> AdvancedLinearSearch::search(py::array_t<float> query, int k) {
     parallel_sort(distances, k);
 
     py::array_t<int> result(k);
+    auto result_ptr = static_cast<int*>(result.request().ptr); 
+
     #pragma omp parallel for
     for (int i = 0; i < k; ++i) {
-        result.mutable_at(i) = distances[i].second;
+        result_ptr[i] = distances[i].second; 
     }
+
 
     delete[] distances;
     return result;
@@ -207,13 +200,6 @@ py::array_t<int> AdvancedLinearSearch::search(py::array_t<float> query, int k) {
 
 // Advanced KNN Search Implementation
 AdvancedKNNSearch::AdvancedKNNSearch(py::array_t<float> vectors, const std::string& metric) {
-    py::buffer_info buf = vectors.request();
-    if (buf.ndim != 2) {
-        throw std::runtime_error("Number of dimensions must be 2");
-    }
-    
-    m_num_vectors = buf.shape[0];
-    m_vector_size = buf.shape[1];
     if (metric == "l2") {
         m_metric = DistanceMetric::L2;
     } else if (metric == "inner_product") {
@@ -223,8 +209,14 @@ AdvancedKNNSearch::AdvancedKNNSearch(py::array_t<float> vectors, const std::stri
     } else {
         throw std::runtime_error("Invalid distance metric");
     }
-
-
+    py::buffer_info buf = vectors.request();
+    if (buf.ndim != 2) {
+        throw std::runtime_error("Number of dimensions must be 2");
+    }
+    
+    m_num_vectors = buf.shape[0];
+    m_vector_size = buf.shape[1];
+    
     size_t total_size = m_num_vectors * m_vector_size;
     m_data = new float[total_size];
     std::memcpy(m_data, buf.ptr, sizeof(float) * total_size);

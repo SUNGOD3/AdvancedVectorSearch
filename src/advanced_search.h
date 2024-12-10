@@ -26,19 +26,10 @@ public:
 protected:
     void normalize(float* data, size_t num_vectors, size_t vector_size);
     float compute_distance(const float* a, const float* b, size_t size) const {
-        switch(m_metric) {
-            case DistanceMetric::L2:
-                return l2_distance(a, b, size);
-            case DistanceMetric::INNER_PRODUCT:
-                return inner_product_distance(a, b, size);
-            case DistanceMetric::COSINE:
-            default:
-                return cosine_distance(a, b, size);
-        }
+        return (m_metric == DistanceMetric::L2) ? l2_distance(a, b, size) : inner_product_distance(a, b, size);
     }
     
     static float inner_product_distance(const float* a, const float* b, size_t size);
-    static float cosine_distance(const float* a, const float* b, size_t size);
     static float cosine_distance(const float* a, const float* b, size_t size, float norm_a, float norm_b);
     static float l2_distance(const float* a, const float* b, size_t size);
     static float l2_distance_early_exit(const float* a, const float* b, size_t size, float threshold);
