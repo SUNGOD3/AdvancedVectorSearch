@@ -1,6 +1,8 @@
 # AdvancedVectorSearch
 This project aims to develop a high-speed and high-accuracy similarity vector search method.
 
+[PPT](https://docs.google.com/presentation/d/1kZTVmiuk8j7mkV637VwyCPt_E7LSCqHtCFL07N9o3pg/edit?usp=sharing)
+
 ## Problem to Solve
 
 1. Improving search speed beyond basic linear search, especially for high-dimensional vector spaces common in RAG systems.
