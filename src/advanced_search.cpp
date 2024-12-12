@@ -383,25 +383,6 @@ void AdvancedKNNSearch::search_ball_tree(const BallNode* node,
         return;
     }
     
-    // For internal nodes, recursively search children
-    /*if (node->left && node->right) {
-        // Calculate distances to both children's centers
-        const float* left_center = m_data + node->left->center_idx * m_vector_size;
-        const float* right_center = m_data + node->right->center_idx * m_vector_size;
-        
-        float dist_to_left = compute_distance(left_center, query, m_vector_size);
-        float dist_to_right = compute_distance(right_center, query, m_vector_size);
-
-        // Visit closer node first for better pruning        
-        if (dist_to_left < dist_to_right) {
-            search_ball_tree(node->left.get(), query, results, result_size, worst_dist, k);
-            search_ball_tree(node->right.get(), query, results, result_size, worst_dist, k);
-        } else {
-            search_ball_tree(node->right.get(), query, results, result_size, worst_dist, k);
-            search_ball_tree(node->left.get(), query, results, result_size, worst_dist, k);
-        }
-    } else if (node->left) search_ball_tree(node->left.get(), query, results, result_size, worst_dist, k);
-    else search_ball_tree(node->right.get(), query, results, result_size, worst_dist, k); */
     if (node->left) search_ball_tree(node->left.get(), query, results, result_size, worst_dist, k);
     if (node->right) search_ball_tree(node->right.get(), query, results, result_size, worst_dist, k);
 }
