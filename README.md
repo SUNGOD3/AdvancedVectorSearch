@@ -1,7 +1,11 @@
-# AdvancedVectorSearch
-This project aims to develop a high-speed and high-accuracy similarity vector search method.
+# AdvancedVectorSearch ![Version](https://img.shields.io/github/v/tag/SUNGOD3/AdvancedVectorSearch?label=version)
 
-[PPT](https://docs.google.com/presentation/d/1kZTVmiuk8j7mkV637VwyCPt_E7LSCqHtCFL07N9o3pg/edit?usp=sharing)
+[![codecov](https://codecov.io/gh/SUNGOD3/AdvancedVectorSearch/graph/badge.svg?token=ZXNRPXKMGE)](https://codecov.io/gh/SUNGOD3/AdvancedVectorSearch)
+[![CI](https://github.com/SUNGOD3/AdvancedVectorSearch/actions/workflows/ci.yml/badge.svg)](https://github.com/SUNGOD3/AdvancedVectorSearch/actions/workflows/ci.yml)
+![Languages](https://img.shields.io/github/languages/top/SUNGOD3/AdvancedVectorSearch)
+[![Google Slides](https://img.shields.io/badge/Google%20Slides-Presentation-blue?logo=google-slides&logoColor=white)](https://docs.google.com/presentation/d/1kZTVmiuk8j7mkV637VwyCPt_E7LSCqHtCFL07N9o3pg/edit?usp=sharing)
+
+This project aims to develop a high-speed and high-accuracy similarity vector search method.
 
 ## Problem to Solve
 
