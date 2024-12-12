@@ -127,23 +127,6 @@ class AdvancedHNSWSearch:
         # Return the list of indices
         return indices[0].tolist()
 
-    def add(self, vector):
-        """
-        Add a new vector to the search index.
-        
-        :param vector: Vector to add
-        """
-        # Ensure vector is a numpy array
-        vector = np.asarray(vector, dtype=np.float32).reshape(1, -1)
-        
-        # Normalize if using cosine or inner product
-        if self.metric in ["cosine", "inner_product"]:
-            faiss.normalize_L2(vector)
-        
-        # Add the vector to the index
-        self.index.add(vector)
-
-
 class LinearSearch:
     def __init__(self, vectors, metric="cosine"):
         """
@@ -188,17 +171,6 @@ class LinearSearch:
         distances = self._compute_distances(query)
         top_k_indices = np.argsort(distances)[:k]
         return top_k_indices.tolist()
-    
-    def add(self, vector):
-        """
-        Add a new vector to the search index.
-        
-        :param vector: Vector to add
-        """
-        vector = np.array(vector).reshape(1, -1)
-        if self.metric == "cosine":
-            vector = vector / np.linalg.norm(vector)
-        self.vectors = np.vstack((self.vectors, vector))
 
 class FaissSearch:
     def __init__(self, vectors, metric="cosine"):
@@ -241,18 +213,3 @@ class FaissSearch:
             
         distances, indices = self.index.search(query, k)
         return indices[0].tolist()
-    
-    def add(self, vectors):
-        """
-        Add new vectors to the search index.
-        
-        :param vectors: Vectors to add
-        """
-        if not isinstance(vectors, np.ndarray):
-            vectors = np.array(vectors)
-        vectors = vectors.astype('float32')
-        
-        if self.metric in ["cosine", "inner_product"]:
-            faiss.normalize_L2(vectors)
-            
-        self.index.add(vectors)
