@@ -23,7 +23,9 @@ rm -f src/advanced_search_cpp*.so
 
 # 編譯 C++ 擴展
 echo "Compiling C++ extension..."
-python src/setup.py build_ext --inplace
+cd src
+python setup.py build_ext --inplace --build-lib=../
+cd ..
 
 # 運行測試
 echo "Running tests..."

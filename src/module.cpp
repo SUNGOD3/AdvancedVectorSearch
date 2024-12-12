@@ -1,5 +1,7 @@
 // src/module.cpp
-#include "advanced_search.h"
+#include "../include/base_search.h"
+#include "../include/linear_search.h"
+#include "../include/knn_search.h"
 
 namespace py = pybind11;
 
