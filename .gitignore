@@ -8,3 +8,5 @@ data/
 best.txt
 performance_comparison.png
 performance_summary.csv
+*.xml
+.coverage

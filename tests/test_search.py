@@ -16,88 +16,74 @@ class TestSearch(unittest.TestCase):
         self.vectors = self.vectors.astype(np.float32)
         self.queries = self.queries.astype(np.float32)
 
-    def test_linear_search(self):
-        linear_search = LinearSearch(self.vectors)
-        results = linear_search.search(self.queries[0], self.k)
-        self.assertEqual(len(results), self.k)
-        for result in results:
-            self.assertIn(result, range(self.num_vectors))
+        self.search_methods = [
+            ('LinearSearch', LinearSearch),
+            ('AdvancedLinearSearch', AdvancedLinearSearch),
+            ('AdvancedKNNSearch', AdvancedKNNSearch),
+            ('AdvancedHNSWSearch', AdvancedHNSWSearch),
+            ('FaissSearch', FaissSearch)
+        ]
 
-    def test_advanced_linear_search(self):
-        advanced_linear = AdvancedLinearSearch(self.vectors)
-        results = advanced_linear.search(self.queries[0], self.k)
-        self.assertEqual(len(results), self.k)
+    def _validate_search_results(self, results, k):
+        """Helper method to validate search results"""
+        self.assertEqual(len(results), k, f"Expected {k} results")
         for result in results:
-            self.assertIn(result, range(self.num_vectors))
+            self.assertIsInstance(result, int)
+            self.assertGreaterEqual(result, 0)
+            self.assertLess(result, self.num_vectors)
 
-    def test_advanced_knn_search(self):
-        advanced_knn = AdvancedKNNSearch(self.vectors)
-        results = advanced_knn.search(self.queries[0], self.k)
-        self.assertEqual(len(results), self.k)
-        for result in results:
-            self.assertIn(result, range(self.num_vectors))
-
-    def test_faiss_search(self):
-        faiss_search = FaissSearch(self.vectors)
-        results = faiss_search.search(self.queries[0], self.k)
-        self.assertEqual(len(results), self.k)
-        for result in results:
-            self.assertIn(result, range(self.num_vectors))
+    def test_all_search_methods(self):
+        """Test each search method individually"""
+        for method_name, SearchClass in self.search_methods:
+            with self.subTest(method=method_name):
+                search_instance = SearchClass(self.vectors)
+                results = search_instance.search(self.queries[0], self.k)
+                self._validate_search_results(results, self.k)
 
     def test_results_consistency(self):
         """Test that all search methods return similar results"""
         query = self.queries[0]
-        
         # Get results from all methods
-        linear_results = set(LinearSearch(self.vectors).search(query, self.k))
-        advanced_linear_results = set(AdvancedLinearSearch(self.vectors).search(query, self.k))
-        advanced_knn_results = set(AdvancedKNNSearch(self.vectors).search(query, self.k))
-        faiss_results = set(FaissSearch(self.vectors).search(query, self.k))
-        
-        # Calculate Jaccard similarity between results
+        method_results = {
+            name: set(SearchClass(self.vectors).search(query, self.k))
+            for name, SearchClass in self.search_methods
+        }
         def jaccard_similarity(set1, set2):
             intersection = len(set1.intersection(set2))
             union = len(set1.union(set2))
             return intersection / union if union > 0 else 0
-        
-        # Compare results with a tolerance
-        tolerance = 0.0 # no tolerance
-        
-        self.assertGreater(jaccard_similarity(linear_results, advanced_linear_results), tolerance)
-        self.assertGreater(jaccard_similarity(linear_results, advanced_knn_results), tolerance)
-        self.assertGreater(jaccard_similarity(linear_results, faiss_results), tolerance)
-        self.assertGreater(jaccard_similarity(advanced_linear_results, advanced_knn_results), tolerance)
-        self.assertGreater(jaccard_similarity(advanced_linear_results, faiss_results), tolerance)
-        self.assertGreater(jaccard_similarity(advanced_knn_results, faiss_results), tolerance)
+        # Compare results with no tolerance
+        tolerance = 0.0
+        # Use itertools to generate all unique method pairs for comparison
+        import itertools
+        method_combinations = list(itertools.combinations(method_results.keys(), 2))
+        for method1, method2 in method_combinations:
+            with self.subTest(method1=method1, method2=method2):
+                self.assertGreater(
+                    jaccard_similarity(method_results[method1], method_results[method2]), 
+                    tolerance
+                )
+
 
     def test_edge_cases(self):
         """Test edge cases for all search methods"""
-        # Test with k = 1
-        k = 1
-        self.assertEqual(len(LinearSearch(self.vectors).search(self.queries[0], k)), k)
-        self.assertEqual(len(AdvancedLinearSearch(self.vectors).search(self.queries[0], k)), k)
-        self.assertEqual(len(AdvancedKNNSearch(self.vectors).search(self.queries[0], k)), k)
-        self.assertEqual(len(FaissSearch(self.vectors).search(self.queries[0], k)), k)
-
-        # Test with k = num_vectors
-        k = self.num_vectors
-        self.assertEqual(len(LinearSearch(self.vectors).search(self.queries[0], k)), k)
-        self.assertEqual(len(AdvancedLinearSearch(self.vectors).search(self.queries[0], k)), k)
-        self.assertEqual(len(AdvancedKNNSearch(self.vectors).search(self.queries[0], k)), k)
-        self.assertEqual(len(FaissSearch(self.vectors).search(self.queries[0], k)), k)
+        edge_cases = [1, self.num_vectors]
+        for k in edge_cases:
+            for method_name, SearchClass in self.search_methods:
+                with self.subTest(method=method_name, k=k):
+                    search_instance = SearchClass(self.vectors)
+                    results = search_instance.search(self.queries[0], k)
+                    self.assertEqual(len(results), k)
 
     def test_input_validation(self):
         """Test input validation for all search methods"""
         invalid_query = np.random.rand(self.dim + 1).astype(np.float32)  # Wrong dimension
         
-        with self.assertRaises(Exception):
-            LinearSearch(self.vectors).search(invalid_query, self.k)
-        with self.assertRaises(Exception):
-            AdvancedLinearSearch(self.vectors).search(invalid_query, self.k)
-        with self.assertRaises(Exception):
-            AdvancedKNNSearch(self.vectors).search(invalid_query, self.k)
-        with self.assertRaises(Exception):
-            FaissSearch(self.vectors).search(invalid_query, self.k)
+        for method_name, SearchClass in self.search_methods:
+            with self.subTest(method=method_name):
+                search_instance = SearchClass(self.vectors)
+                with self.assertRaises(Exception):
+                    search_instance.search(invalid_query, self.k)
 
 if __name__ == '__main__':
     unittest.main()
