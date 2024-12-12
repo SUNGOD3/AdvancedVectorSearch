@@ -178,7 +178,7 @@ def benchmark_large_dataset(vectors, queries, k, dataset_name, metric, dimension
 def main():
     np.random.seed(42)
     # Add different dimensions to test
-    dimensions = [512, 1024]
+    dimensions = [128, 1024]
     metrics = ["cosine", "l2", "inner_product"]
 
     datasets = {
