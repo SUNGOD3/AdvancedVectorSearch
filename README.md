@@ -15,6 +15,48 @@ This project aims to develop a high-speed and high-accuracy similarity vector se
 4. Balancing speed, accuracy, and memory usage in vector search operations.
 
 ## System Architecture
+The system is designed to integrate Python and C++ seamlessly, leveraging the computational efficiency of C++ and the flexibility of Python. The architecture primarily revolves around advanced search functionalities, including linear search and KNN (k-nearest neighbor) search implemented with ball trees. Pybind11 acts as the bridging tool, allowing C++ modules to be directly accessible in Python.
+
+### Modules and Responsibilities
+
+#### Python Components
+
+* search.py:
+  
+  * Provides high-level interfaces for advanced search methods, including AdvancedLinearSearch and AdvancedKNNSearch.
+
+  * Integrates with FAISS for additional support in HNSW (Hierarchical Navigable Small World) searches.
+
+#### C++ Components
+
+* BaseAdvancedSearch:
+
+  * Serves as the abstract base class for all advanced search implementations.
+
+* AdvancedLinearSearch:
+
+  * Implements efficient linear search functionality.
+
+  * Includes optimizations for vector normalization and distance computation.
+
+* AdvancedKNNSearch:
+
+  * Implements KNN search using ball trees for efficient nearest neighbor queries.
+
+  * Includes mechanisms for constructing and querying the ball tree.
+
+### Integration Using Pybind11
+
+The integration layer is built using pybind11, which allows seamless exposure of C++ classes and functions to Python. Key aspects of the integration include:
+
+* Data Interoperability: Numpy arrays in Python are directly mapped to std::vector or Eigen objects in C++ using pybind11's utilities like py::array_t.
+
+* Class Binding: C++ classes such as AdvancedLinearSearch and AdvancedKNNSearch are bound to Python, enabling object-oriented interaction from Python scripts.
+
+* Error Handling: Custom exceptions in C++ are translated to Python exceptions, ensuring consistency in debugging.
+
+## Requirements
+
 ### Hardware:
 * CPU: 4 cores (recommended for smooth operation)
 * Memory: 4 GB of RAM
