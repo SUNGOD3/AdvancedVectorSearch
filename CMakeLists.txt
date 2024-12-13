@@ -18,8 +18,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Python COMPONENTS Interpreter Development REQUIRED)
 find_package(pybind11 REQUIRED)
 
-set(PYBIND11_INCLUDE_DIR /home/codespace/.python/current/include)
-
 include_directories(
     include
     ${PYBIND11_INCLUDE_DIR}
@@ -31,6 +29,8 @@ add_library(search_lib STATIC
     src/linear_search.cpp
     src/knn_search.cpp
 )
+
+target_link_libraries(search_lib PRIVATE pybind11::pybind11)
 
 enable_testing()
 add_subdirectory(tests)
