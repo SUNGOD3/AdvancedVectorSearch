@@ -21,6 +21,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        python -m pip install "pybind11[global]"
         pip install -r requirements.txt
         pip install pybind11 numpy coverage
 
@@ -33,6 +34,16 @@ jobs:
       run: |
         cd src
         python setup.py build_ext --inplace --build-lib=../
+        cd ..
+
+    - name: Run C++ tests
+      run: |
+        echo "Running C++ tests..."
+        mkdir -p build
+        cd build
+        cmake ..
+        make
+        ctest
         cd ..
 
     - name: Run tests with coverage

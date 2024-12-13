@@ -10,28 +10,37 @@ rm -rf build/
 rm -f src/advanced_search_cpp*.so
 
 
-# 安裝 Python 依賴項
+# install python dependencies
 # echo "Installing Python dependencies..."
 # python -m pip install --upgrade pip
 # pip install -r requirements.txt
 # pip install pybind11 numpy
 
-# 安裝系統依賴項
+# install system dependencies
 # echo "Installing system dependencies..."
 # sudo apt-get update
 # sudo apt-get install -y cmake
 
-# 編譯 C++ 擴展
+# Compile C++ extension
 echo "Compiling C++ extension..."
 cd src
 python setup.py build_ext --inplace --build-lib=../
 cd ..
 
-# 運行測試
-echo "Running tests..."
+# run python tests
+echo "Running Python tests..."
 python -m unittest discover tests
 
-# 運行基準測試
+# run C++ tests
+echo "Running C++ tests..."
+mkdir -p build
+cd build
+cmake ..
+make
+ctest
+cd ..
+
+# run benchmarks
 echo "Running benchmarks..."
 python benchmarks/run_benchmarks.py
 python benchmarks/plot.py
