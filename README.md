@@ -21,7 +21,7 @@ The system is designed to integrate Python and C++ seamlessly, leveraging the co
 
 #### Python Components
 
-* search.py:
+* **search.py:**
   
   * Provides high-level interfaces for advanced search methods, including AdvancedLinearSearch and AdvancedKNNSearch.
 
@@ -29,17 +29,17 @@ The system is designed to integrate Python and C++ seamlessly, leveraging the co
 
 #### C++ Components
 
-* BaseAdvancedSearch:
+* **BaseAdvancedSearch:**
 
   * Serves as the abstract base class for all advanced search implementations.
 
-* AdvancedLinearSearch:
+* **AdvancedLinearSearch:**
 
   * Implements efficient linear search functionality.
 
   * Includes optimizations for vector normalization and distance computation.
 
-* AdvancedKNNSearch:
+* **AdvancedKNNSearch:**
 
   * Implements KNN search using ball trees for efficient nearest neighbor queries.
 
@@ -54,6 +54,82 @@ The integration layer is built using pybind11, which allows seamless exposure of
 * Class Binding: C++ classes such as AdvancedLinearSearch and AdvancedKNNSearch are bound to Python, enabling object-oriented interaction from Python scripts.
 
 * Error Handling: Custom exceptions in C++ are translated to Python exceptions, ensuring consistency in debugging.
+
+## Index Module
+
+The Index Module provides various search algorithms for efficiently retrieving the most similar vectors from a collection. It supports different distance metrics and uses both Python and C++ implementations for performance optimization. The module consists of the following classes:
+
+### 1. **AdvancedLinearSearch**
+This class implements a linear search algorithm, which finds the nearest neighbors based on a chosen distance metric. It uses a C++ extension for performance optimization.
+
+- **Constructor Parameters:**
+  - `vectors` (np.ndarray): A 2D array of vectors to search through.
+  - `metric` (str): The distance metric to use. Options include `"cosine"`, `"l2"`, and `"inner_product"`. The default is `"cosine"`.
+  
+- **Methods:**
+  - `search(query, k)`:
+    - `query` (np.ndarray): The query vector.
+    - `k` (int): The number of nearest neighbors to return.
+    - Returns the indices of the `k` most similar vectors.
+
+### 2. **AdvancedKNNSearch**
+This class performs a K-Nearest Neighbors (KNN) search using a C++ implementation for efficient computation.
+
+- **Constructor Parameters:**
+  - `vectors` (np.ndarray): A 2D array of vectors to search through.
+  - `metric` (str): The distance metric to use. Options are `"cosine"`, `"l2"`, and `"inner_product"`. The default is `"cosine"`.
+  
+- **Methods:**
+  - `search(query, k)`:
+    - `query` (np.ndarray): The query vector.
+    - `k` (int): The number of nearest neighbors to return.
+    - Returns the indices of the `k` most similar vectors.
+
+### 3. **AdvancedHNSWSearch**
+This class leverages Faiss' HNSW (Hierarchical Navigable Small World) algorithm for high-performance vector search with enhanced accuracy. It supports multiple distance metrics and allows fine-tuning of the search parameters.
+
+- **Constructor Parameters:**
+  - `vectors` (np.ndarray): A 2D array of vectors to search through.
+  - `metric` (str): The distance metric to use. Options include `"cosine"`, `"l2"`, and `"inner_product"`. The default is `"cosine"`.
+  - `ef_construction` (int): The depth of layer construction. A higher value increases accuracy but decreases performance. Default is `250`.
+  - `M` (int): The maximum number of connections per element. Default is `64`.
+  - `ef_search` (int, optional): The effective search parameter, which controls the search accuracy and performance. If not provided, it is set dynamically based on the dataset size.
+
+- **Methods:**
+  - `search(query, k)`:
+    - `query` (np.ndarray): The query vector.
+    - `k` (int): The number of nearest neighbors to return.
+    - Returns the indices of the `k` most similar vectors.
+
+### 4. **LinearSearch**
+This class implements a straightforward brute-force search algorithm. It computes distances between a query vector and all other vectors in the dataset using the selected distance metric.
+
+- **Constructor Parameters:**
+  - `vectors` (np.ndarray): A 2D array of vectors to search through.
+  - `metric` (str): The distance metric to use. Options include `"cosine"`, `"l2"`, and `"inner_product"`. The default is `"cosine"`.
+
+- **Methods:**
+  - `search(query, k)`:
+    - `query` (np.ndarray): The query vector.
+    - `k` (int): The number of nearest neighbors to return.
+    - Returns the indices of the `k` most similar vectors.
+
+### 5. **FaissSearch**
+This class uses Faiss to perform similarity searches, supporting multiple distance metrics. It normalizes vectors for cosine and inner product metrics, ensuring consistent performance.
+
+- **Constructor Parameters:**
+  - `vectors` (np.ndarray): A 2D array of vectors to search through.
+  - `metric` (str): The distance metric to use. Options include `"cosine"`, `"l2"`, and `"inner_product"`. The default is `"cosine"`.
+
+- **Methods:**
+  - `search(query, k)`:
+    - `query` (np.ndarray): The query vector.
+    - `k` (int): The number of nearest neighbors to return.
+    - Returns the indices of the `k` most similar vectors.
+
+### Notes
+- The module does **not** provide functionality for adding or removing vectors from the index after initialization. The vectors used for indexing must be supplied when the index is created.
+- **HNSW search accuracy**: The accuracy of the AdvancedHNSWSearch method may not be 100% when dealing with very large datasets, as it sacrifices some precision for faster performance. In contrast, other search methods (such as linear search and KNN) perform strict comparisons and guarantee 100% accuracy.
 
 ## Requirements
 
