@@ -12,6 +12,12 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
+# Disable specific warnings for gtest
+if (CMAKE_COMPILER_IS_GNUCXX)
+    add_compile_options(-Wno-error=maybe-uninitialized)
+    set_target_properties(gtest PROPERTIES COMPILE_FLAGS "-Wno-error=maybe-uninitialized")
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -31,11 +37,6 @@ add_library(search_lib STATIC
 )
 
 target_link_libraries(search_lib PRIVATE pybind11::pybind11)
-
-# Disable specific warnings for gtest
-if (CMAKE_COMPILER_IS_GNUCXX)
-    add_compile_options(-Wno-error=maybe-uninitialized)
-endif()
 
 enable_testing()
 add_subdirectory(tests)
