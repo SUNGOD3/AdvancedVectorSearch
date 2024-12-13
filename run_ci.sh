@@ -35,9 +35,12 @@ python -m unittest discover tests
 echo "Running C++ tests..."
 mkdir -p build
 cd build
-cmake ..
+cmake -DCMAKE_BUILD_TYPE=Debug ..
 make
 ctest
+lcov --capture --directory . --output-file coverage.info
+lcov --remove coverage.info '/usr/*' --output-file coverage.info
+lcov --list coverage.info
 cd ..
 
 # run benchmarks

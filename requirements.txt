@@ -7,3 +7,4 @@ tqdm==4.67.0
 matplotlib
 seaborn
 coverage
+lcov

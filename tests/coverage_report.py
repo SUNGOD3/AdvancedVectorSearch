@@ -9,7 +9,7 @@ sys.path.insert(0, project_root)
 def run_coverage():
     cov = coverage.Coverage(
         source=[os.path.join(project_root, 'src')], 
-        omit=[], 
+        omit=['*test*', '*setup.py'],
     )
 
     cov.start()
