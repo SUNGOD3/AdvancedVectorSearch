@@ -169,7 +169,7 @@ echo "Compiling C++ extension..."
 python setup.py build_ext --inplace --build-lib=../
 ```
 
-### Python package
+### [Python package](https://pypi.org/project/advanced-search-cpp/)
 ```python
 pip install advanced-search-cpp
 ```
