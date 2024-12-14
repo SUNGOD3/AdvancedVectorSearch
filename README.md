@@ -1,4 +1,4 @@
-# AdvancedVectorSearch ![Version](https://img.shields.io/github/v/tag/SUNGOD3/AdvancedVectorSearch?label=version)
+# AdvancedVectorSearch ![PyPI version](https://img.shields.io/pypi/v/advanced-search-cpp?label=version)
 
 [![codecov](https://codecov.io/gh/SUNGOD3/AdvancedVectorSearch/graph/badge.svg?token=ZXNRPXKMGE)](https://codecov.io/gh/SUNGOD3/AdvancedVectorSearch)
 [![CI](https://github.com/SUNGOD3/AdvancedVectorSearch/actions/workflows/ci.yml/badge.svg)](https://github.com/SUNGOD3/AdvancedVectorSearch/actions/workflows/ci.yml)
