@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
@@ -10,73 +10,55 @@ jobs:
   cpp-tests:
     uses: ./.github/workflows/setup.yml
     with:
-      python-version: '3.8'
+      install-dev-deps: true
+
     steps:
-    - uses: actions/checkout@v4
-    - name: Compile C++ extension
-      run: |
-        python setup.py build_ext --inplace --build-lib=../
-    - name: Run C++ tests
-      run: |
-        echo "Running C++ tests..."
-        mkdir -p build
-        cd build
-        cmake -DCMAKE_BUILD_TYPE=Debug ..
-        make
-        ctest
-        lcov --capture --directory . --output-file coverage.info
-        lcov --remove coverage.info '/usr/*' --output-file coverage.info
-        lcov --list coverage.info
-        cd ..
-    - name: Upload C++ Coverage Report
-      uses: actions/upload-artifact@v4
-      with:
-        name: cpp-coverage-report
-        path: build/coverage.info
+      - name: Run C++ tests
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Debug ..
+          make
+          ctest
+          
+          # Generate C++ coverage report
+          lcov --capture --directory . --output-file coverage.info
+          lcov --remove coverage.info '/usr/*' --output-file coverage.info
+          lcov --list coverage.info
+          cd ..
+      
+      - name: Upload C++ Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpp-coverage-report
+          path: build/coverage.info
 
   python-tests:
     uses: ./.github/workflows/setup.yml
     with:
-      python-version: '3.8'
+      python-version: '3.9'
+      install-dev-deps: true
+    
     steps:
-    - uses: actions/checkout@v4
-    - name: Run tests with coverage
-      run: python tests/coverage_report.py
-    - name: Upload coverage report
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-report
-        path: |
-          coverage_html
-          coverage.xml
+      - name: Run tests with coverage
+        run: python tests/coverage_report.py
+      
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-coverage-report
+          path: |
+            coverage_html
+            coverage.xml
 
   benchmarks:
     uses: ./.github/workflows/setup.yml
-    with:
-      python-version: '3.8'
     steps:
-    - uses: actions/checkout@v4
-    - name: Run benchmarks
-      run: python benchmarks/run_benchmarks.py
-    - name: Upload benchmark results
-      uses: actions/upload-artifact@v4
-      with:
-        name: benchmark-results
-        path: benchmarks/results.json
-
-  coverage-upload:
-    needs: [cpp-tests, python-tests]
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Download coverage reports
-      uses: actions/download-artifact@v4
-      with:
-        pattern: '*-coverage-report'
-        merge-multiple: true
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.xml
-        flags: unittests
-        token: ${{ secrets.CODECOV_TOKEN }}
+      - name: Run benchmarks
+        run: python benchmarks/run_benchmarks.py
+      
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmarks/results.json
