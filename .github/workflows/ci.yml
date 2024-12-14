@@ -15,30 +15,36 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.8'
+    - name: Cache pip
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install "pybind11[global]"
+        pip install -r requirements.txt
+        pip install pybind11 numpy coverage
     - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y cmake lcov
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install pybind11
-        python -m pip install numpy
-        python -m pip install coverage
-        python -m pip install -r requirements.txt
 
   cpp-tests:
     needs: setup
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Restore pip cache
+      uses: actions/cache@v4
       with:
-        python-version: '3.8'
-    - name: Install Python dependencies
-      run: |
-        python -m pip install pybind11 numpy
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
     - name: Compile C++ extension
       run: |
         python setup.py build_ext --inplace --build-lib=../
@@ -65,14 +71,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Restore pip cache
+      uses: actions/cache@v4
       with:
-        python-version: '3.8'
-    - name: Install Python dependencies
-      run: |
-        python -m pip install numpy
-        python -m pip install coverage
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
     - name: Run tests with coverage
       run: python tests/coverage_report.py
     - name: Upload coverage report
@@ -88,13 +93,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Restore pip cache
+      uses: actions/cache@v4
       with:
-        python-version: '3.8'
-    - name: Install Python dependencies
-      run: |
-        python -m pip install numpy
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
     - name: Run benchmarks
       run: python benchmarks/run_benchmarks.py
     - name: Upload benchmark results
