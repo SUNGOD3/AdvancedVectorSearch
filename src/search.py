@@ -1,8 +1,8 @@
 # src/search.py
 import numpy as np
 from scipy.spatial.distance import cosine, euclidean
-from advanced_search_cpp import AdvancedLinearSearch as CppAdvancedLinearSearch
-from advanced_search_cpp import AdvancedKNNSearch as CppAdvancedKNNSearch
+from .advanced_search_cpp import AdvancedLinearSearch as CppAdvancedLinearSearch
+from .advanced_search_cpp import AdvancedKNNSearch as CppAdvancedKNNSearch
 import faiss
 from enum import Enum
 

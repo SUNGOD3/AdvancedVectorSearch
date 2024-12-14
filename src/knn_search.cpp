@@ -1,4 +1,4 @@
-#include "../include/knn_search.h"
+#include "knn_search.h"
 
 // Advanced KNN Search Implementation
 AdvancedKNNSearch::AdvancedKNNSearch(py::array_t<float> vectors, const std::string& metric) {

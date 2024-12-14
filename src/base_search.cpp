@@ -1,4 +1,4 @@
-#include "../include/base_search.h"
+#include "base_search.h"
 
 float BaseAdvancedSearch::inner_product_distance(const float* a, const float* b, size_t size) {
     float dot = 0.0;

@@ -10,3 +10,5 @@ performance_comparison.png
 performance_summary.csv
 *.xml
 .coverage
+dist/
+*.egg-info

@@ -1,4 +1,4 @@
-#include "../include/linear_search.h"
+#include "linear_search.h"
 
 // Advanced Linear Search Implementation
 AdvancedLinearSearch::AdvancedLinearSearch(py::array_t<float> vectors, const std::string& metric) {

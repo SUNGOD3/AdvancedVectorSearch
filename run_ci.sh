@@ -5,7 +5,7 @@ set -e
 
 # Clean up
 echo "Cleaning up..."
-python src/setup.py clean --all
+python setup.py clean --all
 rm -rf build/
 rm -f src/advanced_search_cpp*.so
 
@@ -23,9 +23,7 @@ rm -f src/advanced_search_cpp*.so
 
 # Compile C++ extension
 echo "Compiling C++ extension..."
-cd src
 python setup.py build_ext --inplace --build-lib=../
-cd ..
 
 # run python tests
 echo "Running Python tests..."
