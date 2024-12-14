@@ -77,11 +77,11 @@ def benchmark_dataset(vectors, queries, k, dataset_name, metric, dimension):
                 benchmark_results
             )
 
-    print(f"Linear search time: {results['linear_search']['total_time']:.4f} s, avg query time: {results['linear_search']['avg_query_time']:.6f} s, accuracy: 1.0 (ground truth), training time: {results['linear_search']['training_time']:.4f} s")
-    print(f"Advanced linear search time: {results['advanced_linear_search']['total_time']:.4f} s, avg query time: {results['advanced_linear_search']['avg_query_time']:.6f} s, accuracy: {results['advanced_linear_search']['accuracy']:.4f}, training time: {results['advanced_linear_search']['training_time']:.4f} s")
-    print(f"Advanced KNN search time: {results['advanced_knn_search']['total_time']:.4f} s, avg query time: {results['advanced_knn_search']['avg_query_time']:.6f} s, accuracy: {results['advanced_knn_search']['accuracy']:.4f}, training time: {results['advanced_knn_search']['training_time']:.4f} s")
-    print(f"Advanced HNSW search time: {results['advanced_hnsw_search']['total_time']:.4f} s, avg query time: {results['advanced_hnsw_search']['avg_query_time']:.6f} s, accuracy: {results['advanced_hnsw_search']['accuracy']:.4f}, training time: {results['advanced_hnsw_search']['training_time']:.4f} s")
-    print(f"Faiss search time: {results['faiss_search']['total_time']:.4f} s, avg query time: {results['faiss_search']['avg_query_time']:.6f} s, accuracy: {results['faiss_search']['accuracy']:.4f}, training time: {results['faiss_search']['training_time']:.4f} s")
+    print(f"Linear search time: {results['linear_search']['total_time']:.4f} s, avg query time: {results['linear_search']['avg_query_time'] * 1000:.6f} ms, accuracy: 1.0 (ground truth), training time: {results['linear_search']['training_time']:.4f} s")
+    print(f"Advanced linear search time: {results['advanced_linear_search']['total_time']:.4f} s, avg query time: {results['advanced_linear_search']['avg_query_time'] * 1000:.6f} ms, accuracy: {results['advanced_linear_search']['accuracy']:.4f}, training time: {results['advanced_linear_search']['training_time']:.4f} s")
+    print(f"Advanced KNN search time: {results['advanced_knn_search']['total_time']:.4f} s, avg query time: {results['advanced_knn_search']['avg_query_time'] * 1000:.6f} ms, accuracy: {results['advanced_knn_search']['accuracy']:.4f}, training time: {results['advanced_knn_search']['training_time']:.4f} s")
+    print(f"Advanced HNSW search time: {results['advanced_hnsw_search']['total_time']:.4f} s, avg query time: {results['advanced_hnsw_search']['avg_query_time'] * 1000:.6f} ms, accuracy: {results['advanced_hnsw_search']['accuracy']:.4f}, training time: {results['advanced_hnsw_search']['training_time']:.4f} s")
+    print(f"Faiss search time: {results['faiss_search']['total_time']:.4f} s, avg query time: {results['faiss_search']['avg_query_time'] * 1000:.6f} ms, accuracy: {results['faiss_search']['accuracy']:.4f}, training time: {results['faiss_search']['training_time']:.4f} s")
 
     return results
 
@@ -134,9 +134,9 @@ def benchmark_large_dataset(vectors, queries, k, dataset_name, metric, dimension
         results["advanced_linear_search"]["results"]
     )
 
-    print(f"Advanced linear search time: {results['advanced_linear_search']['total_time']:.4f} s, avg query time: {results['advanced_linear_search']['avg_query_time']:.6f} s, similarity to Advanced KNN: {results['advanced_linear_search']['accuracy']:.4f}, training time: {results['advanced_linear_search']['training_time']:.4f} s")
-    print(f"Advanced KNN search time: {results['advanced_knn_search']['total_time']:.4f} s, avg query time: {results['advanced_knn_search']['avg_query_time']:.6f} s, similarity to Faiss: {results['advanced_knn_search']['accuracy']:.4f}, training time: {results['advanced_knn_search']['training_time']:.4f} s")
-    print(f"Faiss search time: {results['faiss_search']['total_time']:.4f} s, avg query time: {results['faiss_search']['avg_query_time']:.6f} s, similarity to Advanced Linear: {results['faiss_search']['accuracy']:.4f}, training time: {results['faiss_search']['training_time']:.4f} s")
+    print(f"Advanced linear search time: {results['advanced_linear_search']['total_time']:.4f} s, avg query time: {results['advanced_linear_search']['avg_query_time'] * 1000:.6f} ms, similarity to Advanced KNN: {results['advanced_linear_search']['accuracy']:.4f}, training time: {results['advanced_linear_search']['training_time']:.4f} s")
+    print(f"Advanced KNN search time: {results['advanced_knn_search']['total_time']:.4f} s, avg query time: {results['advanced_knn_search']['avg_query_time'] * 1000:.6f} ms, similarity to Faiss: {results['advanced_knn_search']['accuracy']:.4f}, training time: {results['advanced_knn_search']['training_time']:.4f} s")
+    print(f"Faiss search time: {results['faiss_search']['total_time']:.4f} s, avg query time: {results['faiss_search']['avg_query_time'] * 1000:.6f} ms, similarity to Advanced Linear: {results['faiss_search']['accuracy']:.4f}, training time: {results['faiss_search']['training_time']:.4f} s")
 
     return results
 
