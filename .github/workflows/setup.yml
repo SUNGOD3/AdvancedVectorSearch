@@ -35,3 +35,40 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake lcov
+      
+      - name: Run Specific Job
+        run: |
+          if [[ "${{ github.workflow }}" == "CI/CD Pipeline" ]]; then
+            if [[ "${{ github.job }}" == "cpp-tests" ]]; then
+              mkdir -p build
+              cd build
+              cmake -DCMAKE_BUILD_TYPE=Debug ..
+              make
+              ctest
+              
+              # Generate C++ coverage report
+              lcov --capture --directory . --output-file coverage.info
+              lcov --remove coverage.info '/usr/*' --output-file coverage.info
+              lcov --list coverage.info
+              
+              # Upload artifact
+              cd ..
+              mkdir -p build
+              cp build/coverage.info build/
+              
+            elif [[ "${{ github.job }}" == "python-tests" ]]; then
+              python tests/coverage_report.py
+              
+            elif [[ "${{ github.job }}" == "benchmarks" ]]; then
+              python benchmarks/run_benchmarks.py
+            fi
+          fi
+      
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.job }}-report
+          path: |
+            ${{ github.job == 'cpp-tests' && 'build/coverage.info' || '' }}
+            ${{ github.job == 'python-tests' && 'coverage_html\ncoverage.xml' || '' }}
+            ${{ github.job == 'benchmarks' && 'benchmarks/results.json' || '' }}
