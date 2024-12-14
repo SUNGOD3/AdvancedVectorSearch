@@ -149,7 +149,9 @@ This class uses Faiss to perform similarity searches, supporting multiple distan
   * numpy
   * Other dependencies listed in requirements.txt
  
-## How to build?
+## Setup
+
+### Local
 ```bash
 git clone https://github.com/SUNGOD3/AdvancedVectorSearch.git
 cd AdvancedVectorSearch
@@ -161,9 +163,13 @@ pip install -r requirements.txt
 
 echo "Installing system dependencies..."
 sudo apt-get update
-sudo apt-get install -y cmake
+sudo apt-get install -y cmake lcov
 
 echo "Compiling C++ extension..."
-python src/setup.py build_ext --inplace
+python setup.py build_ext --inplace --build-lib=../
 ```
 
+### Python package
+```python
+pip install advanced-search-cpp
+```
