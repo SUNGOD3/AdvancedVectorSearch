@@ -64,11 +64,17 @@ jobs:
     - name: Run benchmarks
       run: python benchmarks/run_benchmarks.py
 
+    - name: Create benchmark plots
+      run: python benchmarks/plot.py
+
     - name: Upload benchmark results
       uses: actions/upload-artifact@v4
       with:
         name: benchmark-results
-        path: benchmarks/results.json
+        path: |
+          benchmarks/results.json
+          benchmarks/performance_comparison.png
+          benchmarks/performance_summary.csv
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
