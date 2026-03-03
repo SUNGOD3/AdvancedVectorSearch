@@ -36,8 +36,8 @@ cd build
 cmake -DCMAKE_BUILD_TYPE=Debug ..
 make
 ctest
-lcov --capture --directory . --output-file coverage.info
-lcov --remove coverage.info '/usr/*' --output-file coverage.info
+lcov --capture --directory . --output-file coverage.info --ignore-errors mismatch
+lcov --remove coverage.info '/usr/*' --output-file coverage.info --ignore-errors mismatch
 lcov --list coverage.info
 cd ..
 
