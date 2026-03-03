@@ -144,20 +144,11 @@ class LinearSearch:
             self.vectors = self.vectors / norms
     
     def _compute_distances(self, query):
-        if self.metric == "cosine":
-            # Normalize query for cosine similarity
+        if self.metric == "cosine" or self.metric == "inner_product":
             query = query / np.linalg.norm(query)
-            # Compute cosine distances
-            distances = np.array([cosine(query, v) for v in self.vectors])
-        elif self.metric == "inner_product":
-            # Normalize query for inner product
-            query = query / np.linalg.norm(query)
-            # Compute negative inner product (for consistent sorting)
-            distances = np.array([-np.dot(query, v) for v in self.vectors])
+            return -np.dot(self.vectors, query) 
         else:  # L2
-            # Compute L2 distances
-            distances = np.array([euclidean(query, v) for v in self.vectors])
-        return distances
+            return np.linalg.norm(self.vectors - query, axis=1)
     
     def search(self, query, k):
         """

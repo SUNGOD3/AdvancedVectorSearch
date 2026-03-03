@@ -17,6 +17,43 @@ This project aims to develop a high-speed and high-accuracy similarity vector se
 ## System Architecture
 The system is designed to integrate Python and C++ seamlessly, leveraging the computational efficiency of C++ and the flexibility of Python. The architecture primarily revolves around advanced search functionalities, including linear search and KNN (k-nearest neighbor) search implemented with ball trees. Pybind11 acts as the bridging tool, allowing C++ modules to be directly accessible in Python.
 
+### 📂 File Structure
+
+The project follows a standard C++ extension layout for Python, separating high-level Python APIs from low-level C++ implementations.
+
+```text
+AdvancedVectorSearch/
+├── setup.py                 # Build script utilizing pybind11 and CMake to compile C++ extensions.
+├── requirements.txt         # Python dependencies (numpy, faiss-cpu, pybind11, etc.).
+├── README.md                # Project documentation.
+├── FAISS_research.pptx      # Research presentation slides covering FAISS algorithms and benchmarks.
+│
+├── src/                     # Core Source Code (Python & C++)
+│   ├── search.py            # High-level Python APIs (AdvancedLinearSearch, AdvancedKNNSearch, AdvancedHNSWSearch).
+│   ├── module.cpp           # Pybind11 binding layer exposing C++ classes to Python.
+│   ├── base_search.cpp      # Implementation of distance metrics (L2, Cosine) and base search logic.
+│   ├── linear_search.cpp    # High-performance C++ implementation of Linear Search.
+│   ├── knn_search.cpp       # High-performance C++ implementation of KNN / Ball Tree Search.
+│   └── data_generator.py    # Utility script for generating synthetic vector datasets.
+│
+├── include/                 # C++ Header Files
+│   ├── base_search.h        # Declares BaseAdvancedSearch abstract class and underlying operations.
+│   ├── linear_search.h      # Declares AdvancedLinearSearch class.
+│   └── knn_search.h         # Declares AdvancedKNNSearch class.
+│
+├── benchmarks/              # Performance Evaluation
+│   ├── run_benchmarks.py    # Script comparing execution times between Python, C++ Extension, and FAISS.
+│   ├── BIGANN_*.py          # Scripts for downloading and testing on the BIGANN benchmark dataset.
+│   └── plot.py              # Script to visualize benchmark results.
+│
+├── tests/                   # Unit Tests
+│   ├── test_search.py       # Python test cases ensuring API logic and functionality.
+│   ├── *_test.cpp           # C++ test files for verifying low-level memory handling and math operations.
+│   └── coverage_report.py   # Script to generate test coverage reports.
+
+```
+
+
 ### Modules and Responsibilities
 
 #### Python Components
